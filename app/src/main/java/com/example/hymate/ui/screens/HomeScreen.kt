@@ -51,9 +51,6 @@ import com.example.hymate.ui.theme.u
 import com.example.hymate.vehicle.VehicleLink
 import kotlin.random.Random
 
-private val Night = Color(0xFF102338)
-private val Mint = Color(0xFF83E8C6)
-
 /**
  * 메인 홈. 오늘 코스로 들어가는 입구 + 내 성장 요약.
  * 글자를 크게, 항목을 적게 두어서 주행 중에도 한눈에 볼 수 있게 했어요.
@@ -94,21 +91,21 @@ fun HomeScreen(vm: HyViewModel) {
 /** 오늘 코스 — 밤 도시 픽셀 일러스트 위에 경로와 "주행 준비" 버튼 */
 @Composable
 private fun CourseHero(vm: HyViewModel, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(32.u)).background(Night)) {
+    Box(modifier.clip(RoundedCornerShape(32.u)).background(hy.mapBg)) {
         PixelSkyline(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(40.u)) {
-            ArcadeTag("SEOUL / TODAY'S COURSE", color = Mint)
-            HText("국민대학교 → 현대자동차 양재 본사", 50, Modifier.padding(top = 10.u), color = Color.White, weight = FontWeight.Bold, lineHeight = 1.2f, maxLines = 2)
+            ArcadeTag("SEOUL / TODAY'S COURSE")
+            HText("국민대학교 → 현대자동차 양재 본사", 50, Modifier.padding(top = 10.u), color = hy.fg, weight = FontWeight.Bold, lineHeight = 1.2f, maxLines = 2)
             HText(
                 "21.4km · 약 42분 · " + if (vm.rainy) "비 예보 08:30부터" else "맑음",
-                30, Modifier.padding(top = 8.u), color = Color(0xFFB7C7D6),
+                30, Modifier.padding(top = 8.u), color = hy.sub,
             )
             VSpacer1()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.u)) {
                 HButton("주행 준비", vm::openPre, icon = HyIcons.Play, kind = BtnKind.Primary, textSize = 42)
                 HText(
                     if (vm.user.routeMemory) "자주 다닌 길 · ${vm.user.drives}회" else "처음 가는 길",
-                    28, color = Mint, weight = FontWeight.SemiBold,
+                    28, color = hy.ok, weight = FontWeight.SemiBold,
                 )
             }
         }
@@ -226,6 +223,7 @@ private class Tower(val x: Float, val w: Float, val h: Float, val far: Boolean, 
 /** 밤 도시 픽셀 스카이라인 + 도로 위 자동차 (장식용). 격자 단위는 높이의 1/60. */
 @Composable
 private fun PixelSkyline(modifier: Modifier) {
+    val pal = hy
     val towers = remember {
         val r = Random(7)
         var x = 0f
@@ -245,32 +243,32 @@ private fun PixelSkyline(modifier: Modifier) {
         // 건물 (글자가 놓이는 왼쪽 위를 피해서 아래쪽에만)
         towers.forEach { t ->
             val top = ground - t.h * px
-            cell(if (t.far) Color(0xFF142C40) else Color(0xFF254655), t.x, top, t.w, t.h)
+            cell(if (t.far) pal.s1 else pal.s2, t.x, top, t.w, t.h)
             val cols = (t.w / 3).toInt()
             t.lit.forEachIndexed { i, on ->
                 val cx = i % cols
                 val cy = i / cols
-                cell(if (on) Mint.copy(alpha = .75f) else Color(0xFF316478).copy(alpha = .5f), t.x + 1f + cx * 3f, top + (2f + cy * 4f) * px, 1.4f, 1.6f)
+                cell(if (on) pal.ok.copy(alpha = .85f) else pal.line.copy(alpha = .55f), t.x + 1f + cx * 3f, top + (2f + cy * 4f) * px, 1.4f, 1.6f)
             }
         }
         // 지면 · 도로 · 차선
-        drawRect(Color(0xFF163444), Offset(0f, ground), Size(size.width, 11f * px))
-        drawRect(Color(0xFF08121D), Offset(0f, ground + 3f * px), Size(size.width, 8f * px))
-        drawRect(Color(0xFF79EDC6), Offset(0f, ground + 3f * px), Size(size.width, 0.5f * px))
+        drawRect(pal.s1, Offset(0f, ground), Size(size.width, 11f * px))
+        drawRect(pal.mapCase, Offset(0f, ground + 3f * px), Size(size.width, 8f * px))
+        drawRect(pal.ok, Offset(0f, ground + 3f * px), Size(size.width, 0.5f * px))
         var lx = 0f
         while (lx * px < size.width) {
-            cell(Color(0xFF2A5464), lx, ground + 6.6f * px, 5f, 0.6f)
+            cell(pal.line, lx, ground + 6.6f * px, 5f, 0.6f)
             lx += 10f
         }
         // 자동차
         val cx = size.width / px * 0.74f
         val cy = ground + 3.2f * px
-        cell(Color(0xFF64D9B2), cx, cy, 16f, 3.4f)
-        cell(Color(0xFF64D9B2), cx + 3f, cy - 2.6f * px, 9f, 2.6f)
-        cell(Color(0xFF142937), cx + 4f, cy - 2f * px, 7f, 1.8f)
-        cell(Color(0xFFB9FBE3), cx + 8f, cy - 2f * px, 0.6f, 1.8f)
-        cell(Color(0xFFFFBC86), cx + 15f, cy + 1f * px, 1.4f, 1f)
-        cell(Color(0xFF060E15), cx + 2f, cy + 3f * px, 3f, 1.6f)
-        cell(Color(0xFF060E15), cx + 11f, cy + 3f * px, 3f, 1.6f)
+        cell(pal.ok, cx, cy, 16f, 3.4f)
+        cell(pal.ok, cx + 3f, cy - 2.6f * px, 9f, 2.6f)
+        cell(pal.mapCase, cx + 4f, cy - 2f * px, 7f, 1.8f)
+        cell(Color.White, cx + 8f, cy - 2f * px, 0.6f, 1.8f)
+        cell(pal.amber, cx + 15f, cy + 1f * px, 1.4f, 1f)
+        cell(pal.mapCase, cx + 2f, cy + 3f * px, 3f, 1.6f)
+        cell(pal.mapCase, cx + 11f, cy + 3f * px, 3f, 1.6f)
     }
 }
