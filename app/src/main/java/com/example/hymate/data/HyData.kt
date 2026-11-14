@@ -1,6 +1,7 @@
 package com.example.hymate.data
 
 import androidx.compose.ui.geometry.Offset
+import java.util.Locale
 
 // ───────────────────────── 가이드 라이브러리 ─────────────────────────
 
@@ -404,7 +405,7 @@ fun buildQuests(profile: String, user: UserProfile, veh: Vehicle, condConsent: S
     val out = mutableListOf<Quest>()
     fun q(g: String, place: String, short: String, d: Int, ok: Boolean?, ev: String, dir: String? = null, lab: String? = null, limit: Int = 0, consent: Boolean = false, res: Char? = null) {
         out += Quest(
-            id = "Q-%02d".format(out.size + 1), g = g, place = place, short = short, d = d,
+            id = "Q-%02d".format(Locale.US, out.size + 1), g = g, place = place, short = short, d = d,
             res = res ?: when (ok) { true -> 'S'; false -> 'F'; null -> 'R' }, ev = ev, dir = dir, lab = lab, limit = limit,
             fb = user.st[g]?.status != "graduated", consent = consent,
         )
@@ -479,5 +480,5 @@ fun clockText(sec: Float, withSeconds: Boolean = false): String {
     val s = (8 * 3600 + 12 * 60 + sec).toInt()
     val h = (s / 3600) % 24
     val m = (s / 60) % 60
-    return if (withSeconds) "%02d:%02d:%02d".format(h, m, s % 60) else "%02d:%02d".format(h, m)
+    return if (withSeconds) "%02d:%02d:%02d".format(Locale.US, h, m, s % 60) else "%02d:%02d".format(Locale.US, h, m)
 }

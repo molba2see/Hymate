@@ -215,7 +215,8 @@ private fun ColumnScope.SummaryPanel(vm: HyViewModel, auto: List<Quest>) {
 
 @Composable
 private fun GrowBox(vm: HyViewModel) {
-    val g = vm.computeGrowth()
+    // XP 게이지 애니메이션 동안 매 프레임 재계산하지 않도록 입력이 바뀔 때만 계산해요
+    val g = remember(vm.quests, vm.user) { vm.computeGrowth() }
     val xp0 = vm.user.xp
     val xp1 = xp0 + g.gain
     val t0 = tierOf(xp0)

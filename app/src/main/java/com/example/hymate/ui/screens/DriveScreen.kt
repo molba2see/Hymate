@@ -63,6 +63,7 @@ import com.example.hymate.ui.theme.HyIcons
 import com.example.hymate.ui.theme.hy
 import com.example.hymate.ui.theme.mix
 import com.example.hymate.ui.theme.u
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -78,20 +79,20 @@ import kotlin.random.Random
 @Composable
 fun DriveScreen(vm: HyViewModel) {
     // progress는 매 프레임 바뀌어요. 화면 전체가 아니라 표시 값이 달라질 때만 리컴포즈되도록 파생 상태로 읽어요.
-    val nmState by remember { derivedStateOf { nextManeuver(vm.progress.floatValue) } }
+    val nmState by remember { derivedStateOf { nextManeuver(vm.progress) } }
     val distText by remember {
         derivedStateOf {
-            val p = vm.progress.floatValue
+            val p = vm.progress
             val r = (nextManeuver(p)?.d ?: DEST) - p
-            if (r < 1000) "${(r / 10).toInt() * 10}m" else "%.1fkm".format(r / 1000)
+            if (r < 1000) "${(r / 10).toInt() * 10}m" else "%.1fkm".format(Locale.US, r / 1000)
         }
     }
-    val remKmText by remember { derivedStateOf { "%.1fkm".format((DEST - vm.progress.floatValue) / 1000f) } }
-    val remMin by remember { derivedStateOf { kotlin.math.ceil((DEST - vm.progress.floatValue) / 1000f / 28f * 60f).toInt() } }
+    val remKmText by remember { derivedStateOf { "%.1fkm".format(Locale.US, (DEST - vm.progress) / 1000f) } }
+    val remMin by remember { derivedStateOf { kotlin.math.ceil((DEST - vm.progress) / 1000f / 28f * 60f).toInt() } }
     val context = LocalContext.current
     val debuggable = remember { (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 }
     Box(Modifier.fillMaxSize().background(hy.mapBg)) {
-        NavMap({ vm.progress.floatValue }, Modifier.fillMaxSize())
+        NavMap({ vm.progress }, Modifier.fillMaxSize())
         if (vm.raining) RainOverlay()
 
         // TBT

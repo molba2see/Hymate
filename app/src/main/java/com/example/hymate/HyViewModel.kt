@@ -80,7 +80,9 @@ class HyViewModel : ViewModel() {
     var selectedGuide by mutableStateOf<String?>(null); private set
 
     // 주행
-    val progress = mutableFloatStateOf(0f)
+    private val _progress = mutableFloatStateOf(0f)
+    /** 경로 진행 거리(m). 쓰기는 ViewModel 내부에서만, 화면은 읽기만 해요. */
+    val progress: Float get() = _progress.floatValue
     var questStarted by mutableStateOf(false); private set
     var stopped by mutableStateOf(false); private set
     var raining by mutableStateOf(false); private set
@@ -194,7 +196,7 @@ class HyViewModel : ViewModel() {
         if (screen == Screen.Drive) return
         questStarted = withQuest
         quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond) else emptyList()
-        progress.floatValue = 0f
+        _progress.floatValue = 0f
         stopped = false; raining = false; voice = null
         screen = Screen.Drive
         driveJob?.cancel()
@@ -206,7 +208,7 @@ class HyViewModel : ViewModel() {
     /** 개발용: 남은 주행을 건너뛰고 도착 처리 */
     fun skipToArrive() {
         driveJob?.cancel()
-        progress.floatValue = DEST.toFloat()
+        _progress.floatValue = DEST.toFloat()
         arrive()
     }
 
@@ -218,13 +220,13 @@ class HyViewModel : ViewModel() {
         val stops = STOPS.toMutableList()
         val metersPerSecond = 340f // 약 1분 남짓에 21.4km를 재생하는 시간 압축
         var last = System.nanoTime()
-        while (progress.floatValue < DEST) {
+        while (_progress.floatValue < DEST) {
             delay(16)
             // delay는 16ms보다 길어질 수 있어서 실제 경과 시간으로 전진해요 (기기와 무관하게 같은 속도)
             val now = System.nanoTime()
             val dt = ((now - last) / 1e9f).coerceIn(0f, 0.05f)
             last = now
-            val d = progress.floatValue
+            val d = _progress.floatValue
             var nd = d + metersPerSecond * dt
             val stop = stops.firstOrNull()
             if (!raining && rainy && nd >= RAIN_START_D) {
@@ -233,7 +235,7 @@ class HyViewModel : ViewModel() {
             }
             if (stop != null && nd >= stop.d) {
                 nd = stop.d.toFloat()
-                progress.floatValue = nd
+                _progress.floatValue = nd
                 stops.removeAt(0)
                 // ── 정차 판정: 속도 ≤0.5km/h + 브레이크 3초 (압축해서 1.2초) ──
                 stopped = true
@@ -261,7 +263,7 @@ class HyViewModel : ViewModel() {
                 last = System.nanoTime()
                 continue
             }
-            progress.floatValue = nd.coerceAtMost(DEST.toFloat())
+            _progress.floatValue = nd.coerceAtMost(DEST.toFloat())
         }
         arrive()
     }
@@ -345,7 +347,7 @@ class HyViewModel : ViewModel() {
         practice = emptyMap()
         selectedGuide = null
         reportDetail = null
-        progress.floatValue = 0f
+        _progress.floatValue = 0f
         raining = false
         // 실제 차량 값을 받는 중이면 그대로 두고, 시뮬레이션일 때만 초기화해요
         if (vehicleLink != VehicleLink.Connected) vehicle = Vehicle(belt = vehicle.belt)
