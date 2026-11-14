@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 차량(AAOS) 우선이지만, 개발 중에는 태블릿/에뮬레이터에서도 설치되도록 required=false -->
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="false" />
+
+    <!-- Pleos Connect Vehicle SDK: 사용하는 도메인의 권한만 선언 -->
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />  <!-- Light · TurnSignal -->
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" /> <!-- Wiper -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />   <!-- Brake -->
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />  <!-- Safety(안전벨트 경고) -->
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Hymate">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="true"
+            tools:ignore="DiscouragedApi">
+            <!--
+                주행 중에도 시스템 차단 화면("주행 중에는 사용할 수 없습니다")에 가려지지 않게 해요.
+                대신 앱이 스스로 주행 중에는 설정·연습·리포트 화면을 잠가요 (HyApp의 DrivingLock).
+            -->
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
