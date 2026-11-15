@@ -131,7 +131,7 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
         Row(
             Modifier.align(Alignment.BottomStart).padding(32.u)
                 .shadow(12.u, RoundedCornerShape(32.u))
-                .clip(RoundedCornerShape(32.u)).background(mix(hy.s1, 0.95f, Color.Transparent))
+                .clip(RoundedCornerShape(32.u)).background(MapCard)
                 .padding(horizontal = 40.u, vertical = 22.u),
             horizontalArrangement = Arrangement.spacedBy(52.u),
         ) {
@@ -144,7 +144,7 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
         Row(
             Modifier.align(Alignment.BottomEnd).padding(32.u).height(96.u)
                 .shadow(12.u, RoundedCornerShape(50))
-                .clip(RoundedCornerShape(50)).background(mix(hy.s1, 0.95f, Color.Transparent))
+                .clip(RoundedCornerShape(50)).background(MapCard)
                 .then(if (!vm.motionAvailable) Modifier.clickable(onClick = onRequestVehicleAccess) else Modifier)
                 .padding(start = 16.u, end = 32.u),
             verticalAlignment = Alignment.CenterVertically,
@@ -159,7 +159,7 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
                     vm.stopped -> "정차 · 짧게 말할 수 있어요"
                     else -> "동승 중 · 화면 조작 없이 기록"
                 },
-                28, color = hy.sub,
+                28, color = MapSub,
             )
         }
 
@@ -180,8 +180,8 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
 @Composable
 private fun EtaItem(value: String, label: String) {
     Column {
-        HText(value, 50, weight = FontWeight.Bold, lineHeight = 1.1f)
-        HText(label, 26, color = hy.sub)
+        HText(value, 50, color = MapFg, weight = FontWeight.Bold, lineHeight = 1.1f)
+        HText(label, 26, color = MapSub)
     }
 }
 
@@ -253,6 +253,11 @@ private val MapBg = Color(0xFFEAEEF3)
 private val MapStreet = Color(0xFFFFFFFF)
 private val MapCase = Color(0xFFCDD4DE)
 private val MapDone = Color(0xFF98A2B0)
+
+// 지도 위 카드·알약은 앱 다크 테마와 무관하게 주간 지도에 맞는 밝은 색을 써요.
+private val MapCard = Color(0xF2FFFFFF)
+private val MapFg = Color(0xFF1B2129)
+private val MapSub = Color(0xFF66707C)
 
 private class Street(val a: Offset, val b: Offset, val w: Float)
 

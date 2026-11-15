@@ -87,6 +87,7 @@ class HyViewModel : ViewModel() {
     /** 레버·벨트 등 Pleos 차량 데이터 연결 상태. */
     var vehicleLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
     var speedLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
+    var locationLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
     var motionAvailable by mutableStateOf(false); private set
     var remainingSeconds by mutableStateOf<Float?>(null); private set
     var arrivedAtMillis by mutableStateOf(0L); private set
@@ -236,6 +237,14 @@ class HyViewModel : ViewModel() {
             remainingSeconds = null
             silenceWhenMoving()
         }
+    }
+
+    fun onLocationLink(link: VehicleLink) { locationLink = link }
+
+    /** FusedLocation 좌표 → 경로 스냅. 경로에서 벗어나 있으면 차속 적분을 그대로 둬요. */
+    fun onLocationFix(lat: Double, lng: Double) {
+        val d = com.example.hymate.data.routeDistanceOf(lat, lng) ?: return
+        session.syncDistance(d)
     }
 
     fun onVehicleSpeed(speedMps: Float?, sampledAtNanos: Long) {
@@ -416,7 +425,8 @@ class HyViewModel : ViewModel() {
             stopped = session.stopped
             if (!stopped) {
                 stopHandled = false
-                if (screen == Screen.Drive) cancelVoice()
+                // 재출발 시 즉시 음성 중단. 매 틱이 아니라 재생 중일 때만 호출해요.
+                if (screen == Screen.Drive && (voice != null || feedbackJob?.isActive == true)) cancelVoice()
             }
             if (questStarted) quests = evaluator.update(quests, vehicle, session)
             if (stopped && screen == Screen.Drive && questStarted && speechEngine != null &&

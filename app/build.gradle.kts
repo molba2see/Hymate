@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.pleos.vehicle)
     implementation(libs.pleos.tts)
     implementation(libs.pleos.stt)
+    implementation(libs.pleos.location)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -47,6 +47,15 @@ class LiveDriveSession {
         }
     }
 
+    /**
+     * 위치 스냅으로 경로거리를 보정해요. 앞으로는 그대로 따라가고,
+     * GPS 흔들림으로 인한 뒤로 점프는 30m까지만 무시해요(그 이상 뒤면 적분 오차 → 수용).
+     */
+    fun syncDistance(meters: Float) {
+        if (!meters.isFinite() || meters < 0f) return
+        if (meters >= distanceMeters - 30f) distanceMeters = meters
+    }
+
     fun remainingSeconds(destinationMeters: Float, vehicle: Vehicle): Float? {
         if (!speedAvailable || vehicle.speedMps == null || vehicle.speedMps <= STOP_SPEED_MPS ||
             (VehicleSignal.GEAR in vehicle.knownSignals && vehicle.parked)) return null

@@ -21,6 +21,7 @@ import com.example.hymate.speech.PleosSpeechEngine
 import com.example.hymate.ui.HyApp
 import com.example.hymate.ui.theme.HyTheme
 import com.example.hymate.vehicle.CarSpeedSource
+import com.example.hymate.vehicle.LocationSource
 import com.example.hymate.vehicle.PleosVehicleSource
 import com.example.hymate.vehicle.UxRestrictionsSource
 
@@ -47,6 +48,11 @@ class MainActivity : ComponentActivity() {
 
     private val speechEngine by lazy { PleosSpeechEngine(applicationContext) }
 
+    /** Pleos FusedLocation → 경로 스냅. 왼쪽 차량 지도와 앱 지도의 위치를 맞춰요. */
+    private val locationSource by lazy {
+        LocationSource(this, onFix = vm::onLocationFix, onLink = vm::onLocationLink)
+    }
+
     private var permissionDialog: AlertDialog? = null
 
     private val speedPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -72,6 +78,7 @@ class MainActivity : ComponentActivity() {
         vm.attachSpeech(speechEngine)
         vehicleSource.start()
         uxSource.start()
+        locationSource.start()
         // 권한이 이미 있으면 백그라운드 복귀 시 차속 구독을 이어가요.
         if (hasSpeedPermission()) speedSource.start()
     }
@@ -83,6 +90,7 @@ class MainActivity : ComponentActivity() {
         speedSource.stop()
         vehicleSource.stop()
         uxSource.stop()
+        locationSource.stop()
         super.onStop()
     }
 
