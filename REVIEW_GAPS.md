@@ -28,8 +28,8 @@
 ### 1-2. 계획과 다른 것 ❌
 | # | 기획서 | 현재 구현 | 비고 |
 |---|---|---|---|
-| G1 | 그랜저·투싼은 **차종별 지원 기능 확인 후 미지원 가이드 자동 제외** | 차종 감지 없음 — 20개 가이드 항상 노출 | 신규 작업 필요 (Vehicle SDK capability 조회 확인) |
-| G2 | Vehicle SDK로 **조향각·크루즈 상태** 조회 | 둘 다 미연동 (크루즈는 경험형 자가응답으로만) | SDK 지원 여부 확인 후 반영 |
+| G1 | 그랜저·투싼은 **차종별 지원 기능 확인 후 미지원 가이드 자동 제외** | 차종 감지 없음 — 20개 가이드 항상 노출 | **구현 수단 확인됨**: SDK의 `check...Capabilities()` 계열(예: `checkCruiseControlStateCapabilities`, `checkSteeringWheelAngleCapabilities`)로 기능별 지원 여부 조회 → 미지원 가이드 제외 |
+| G2 | Vehicle SDK로 **조향각·크루즈 상태** 조회 | 둘 다 미연동 (크루즈는 경험형 자가응답으로만) | **SDK 지원 확인됨(2.3.2 소스)**: `SteeringWheel.getCurrentSteeringWheelAngle`/`registerSteeringWheelAngle`, `DrivingMode.getCruiseControlState`(ENABLED/ACTIVATED 등)/`getCruiseControlTargetSpeed` — 전부 기존 선언 권한 `CAR_DRIVE`로 사용 가능 |
 | G3 | 졸업 가이드는 **출발 전 안내에서 제외** | 출발 전 목록에 '졸업' 태그로 흐리게 계속 노출 | 정차 피드백 제외는 ✅. UI 정책 결정 필요(완전 숨김 vs 접기) |
 | G4 | 날씨는 **서버 조회, 실패 시 와이퍼로 우천 추정** | `rainy = true` 하드코딩 | 폴백(와이퍼 추정)만이라도 구현 가능 |
 | G5 | TextToSpeech SDK로 **실제 음성** 피드백(음악 볼륨 낮춤) | 음성은 화면 배너 목업, 소리 없음 | 아래 P2와 동일 항목 |
