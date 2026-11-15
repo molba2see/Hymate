@@ -32,6 +32,12 @@
 관찰만 하다가, 정차했을 때 한 마디, 주차한 뒤 리포트로 알려준다. 잘한 것은 게임처럼 쌓여
 라이선스(L0 → L1 → …)로 성장한다.
 
+<p align="center">
+  <img src="docs/images/license.png" width="640" alt="첫 주행을 마치면 발급되는 L0 라이선스 카드"/>
+  <br/>
+  <sub>첫 주행을 마치고 기준 XP를 넘기면 라이선스가 발급된다 — 익힌 가이드, 누적 주행, 연속 기록이 카드에 쌓인다</sub>
+</p>
+
 ## 주요 기능
 
 | 기능 | 설명 |
@@ -94,9 +100,9 @@
 |---|---|---|
 | ![실습](docs/images/practice.png) | ![주행](docs/images/drive-nav.png) | ![음성 피드백](docs/images/drive-voice.png) |
 
-| 주행 리포트 | 리포트 상세 · 이의 제기 | 라이선스 발급 |
-|---|---|---|
-| ![리포트](docs/images/report.png) | ![리포트 상세](docs/images/report-detail.png) | ![라이선스](docs/images/license.png) |
+| 주행 리포트 | 리포트 상세 · 이의 제기 |
+|---|---|
+| ![리포트](docs/images/report.png) | ![리포트 상세](docs/images/report-detail.png) |
 
 | 동승 설정 (동의·음성 테스트) | 테스트 환경 (Pleos Virtual Console) |
 |---|---|
@@ -156,6 +162,18 @@ git clone https://github.com/molba2see/Hymate.git
 - **차량 연동** — Pleos Vehicle SDK 2.3.2, TextToSpeech·SpeechToText 3.3.1, FusedLocation 1.1.3, AAOS CarPropertyManager(차속)·CarUxRestrictions
 - **지도·길찾기** — MapLibre Native, OpenStreetMap 래스터 타일, OSRM Route API, OkHttp
 - **테스트** — JUnit4 로컬 단위 테스트
+
+## 팀 국대오빠차
+
+국민대학교 5인 팀.
+
+| 이름 | 역할 |
+|---|---|
+| 김해나 | 기획 |
+| 송민승 | PO |
+| [이상원](https://github.com/leesangwon393) | 앱개발 (PA) |
+| [김정호](https://github.com/molba2see) | PM |
+| 이은진 | 앱개발 (PA) |
 
 ## 외부 서비스 고지
 
