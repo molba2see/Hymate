@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import com.example.hymate.ui.HyApp
 import com.example.hymate.ui.theme.HyTheme
 import com.example.hymate.vehicle.PleosVehicleSource
+import com.example.hymate.vehicle.UxRestrictionsSource
 
 class MainActivity : ComponentActivity() {
     private val vm: HyViewModel by viewModels()
@@ -20,6 +21,9 @@ class MainActivity : ComponentActivity() {
     private val vehicleSource by lazy {
         PleosVehicleSource(this, onSignal = vm::onVehicleSignal, onLink = vm::onVehicleLink)
     }
+
+    /** AAOS CarUxRestrictions → ViewModel. 주행 중 화면 잠금을 시스템 규제에 맞춰요. */
+    private val uxSource by lazy { UxRestrictionsSource(this, onUx = vm::onUxRestrictions) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,10 +38,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         vehicleSource.start()
+        uxSource.start()
     }
 
     override fun onStop() {
         vehicleSource.stop()
+        uxSource.stop()
         super.onStop()
     }
 }

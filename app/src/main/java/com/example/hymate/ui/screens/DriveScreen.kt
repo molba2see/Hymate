@@ -73,7 +73,7 @@ import kotlin.random.Random
 /**
  * 주행 · 정차 화면.
  * 주행 중 Hy! mate는 화면을 쓰지 않아요(OEM 내비가 전체). 여기 지도는 OEM 내비를 흉내 낸 목업이고,
- * Hy! mate가 실제로 그리는 건 하단 우측 상태 알약과 정차 중 상단 우측 Gleo 배너뿐이에요.
+ * Hy! mate가 실제로 그리는 건 하단 우측 상태 알약과 정차 중 상단 우측 음성 배너뿐이에요.
  * 배너는 실차에서는 AAOS heads-up 알림으로 띄우는 것을 기본안으로 둬요.
  */
 @Composable
@@ -158,7 +158,7 @@ fun DriveScreen(vm: HyViewModel) {
             )
         }
 
-        // Gleo 배너 (정차 중에만)
+        // 음성 배너 (정차 중에만)
         AnimatedVisibility(
             visible = vm.voice != null,
             modifier = Modifier.align(Alignment.TopEnd).padding(32.u),
@@ -204,9 +204,9 @@ private fun GleoBanner(v: VoiceUi, onAnswer: (Boolean) -> Unit) {
             Column(Modifier.weight(1f)) {
                 HText(
                     when (v) {
-                        is VoiceUi.Feedback -> "Gleo · 실시간 피드백 · 음악 볼륨 낮춤"
-                        is VoiceUi.Question -> if (v.listening) "Gleo · 듣는 중" else "Gleo"
-                        is VoiceUi.Confirm -> "Gleo · 저장했어요"
+                        is VoiceUi.Feedback -> "Hy! mate · 실시간 피드백 · 음악 볼륨 낮춤"
+                        is VoiceUi.Question -> if (v.listening) "Hy! mate · 듣는 중" else "Hy! mate"
+                        is VoiceUi.Confirm -> "Hy! mate · 저장했어요"
                     },
                     24, color = hy.sub, weight = FontWeight.Bold,
                 )

@@ -23,6 +23,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Hymate">
 
+        <!-- AAOS Car API (CarUxRestrictions). 차량이 아니면 없어도 설치되게 required=false -->
+        <uses-library
+            android:name="android.car"
+            android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

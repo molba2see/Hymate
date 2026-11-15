@@ -251,7 +251,7 @@ fun ConsentRow(label: String, v: String, cond: Boolean = false) {
     val (text, color) = when (v) {
         "on" -> (if (cond) "포함" else "켜짐") to hy.ok
         "off" -> (if (cond) "제외" else "꺼짐") to hy.sub
-        else -> "Gleo가 물어보기" to hy.gleo
+        else -> "Hy! mate가 물어보기" to hy.gleo
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.u), verticalAlignment = Alignment.CenterVertically) {
         HText(label, 28, Modifier.weight(1f))

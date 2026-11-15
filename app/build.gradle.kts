@@ -10,9 +10,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.hymate"
+        // 스토어 고유 식별자. Kotlin 패키지(namespace)와 달라도 됨.
+        applicationId = "ai.hymate.app"
         minSdk = 28
-        targetSdk = 37
+        // Pleos Connect 플랫폼이 API 34라 런타임 동작을 34에 맞춰요. (compileSdk는 설치된 37 유지 — compileSdk ≥ targetSdk)
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 

@@ -35,7 +35,7 @@ enum class Screen { Home, Settings, Pre, Guide, Drive, Report }
 /** 홈 화면에 보여줄 직전 주행 요약 */
 data class DriveLog(val ok: Int, val miss: Int, val gain: Int, val grads: Int)
 
-/** 동의 값: on / off / ask(Gleo가 물어보기) */
+/** 동의 값: on / off / ask(Hy! mate가 물어보기) */
 data class Consents(val feedback: String = "on", val cond: String = "ask", val chime: String = "on")
 
 data class ConsentRecord(val item: String, val value: String, val channel: String)
@@ -68,7 +68,7 @@ class HyViewModel : ViewModel() {
         listOf(
             ConsentRecord("서비스 성격 고지", "확인함", "터치 · 최초 실행"),
             ConsentRecord("실시간 피드백", "켜기", "터치 · 동승 설정"),
-            ConsentRecord("상황 가이드", "Gleo가 물어보기", "터치 · 동승 설정"),
+            ConsentRecord("상황 가이드", "Hy! mate가 물어보기", "터치 · 동승 설정"),
             ConsentRecord("접근 알림음", "켜기", "터치 · 동승 설정"),
         ),
     ); private set
@@ -117,11 +117,23 @@ class HyViewModel : ViewModel() {
     fun canGoBack() = licenseOpen || screen == Screen.Settings || screen == Screen.Guide || screen == Screen.Pre ||
         (screen == Screen.Report && reportDetail != null)
 
+    // AAOS CarUxRestrictions 상태. 쓸 수 있으면 이걸 따르고(Pleos 필수), 없으면 기어(P)로 폴백해요.
+    var uxAvailable by mutableStateOf(false); private set
+    var uxRequiresDO by mutableStateOf(false); private set
+
+    /** AAOS CarUxRestrictions 콜백 (PleosVehicleSource와 별개 · 메인 스레드) */
+    fun onUxRestrictions(available: Boolean, requiresDO: Boolean) {
+        uxAvailable = available
+        uxRequiresDO = requiresDO
+    }
+
     /**
-     * 실제 차량이 주행 중인지 (Vehicle SDK 기어가 P가 아님). 차량이 연결되지 않았거나 기어를 모르면 false.
-     * 앱은 주행 중에도 떠 있지만(distractionOptimized), 읽을거리·조작이 많은 화면은 이 값으로 스스로 잠가요.
+     * 읽을거리·조작이 많은 화면을 잠글지. distractionOptimized 앱은 시스템 CarUxRestrictions를 따라야 해요.
+     * CarUxRestrictions를 받을 수 있으면 isRequiresDistractionOptimization()을, 아니면 기어 P 여부로 판단해요.
      */
-    val driving: Boolean get() = vehicleLink == VehicleLink.Connected && !vehicle.parked
+    val driving: Boolean get() =
+        if (uxAvailable) uxRequiresDO
+        else vehicleLink == VehicleLink.Connected && !vehicle.parked
 
     fun openLicense() { licenseOpen = true }
     fun closeLicense() { licenseOpen = false }
@@ -143,7 +155,7 @@ class HyViewModel : ViewModel() {
             "cond" -> consents.copy(cond = v)
             else -> consents.copy(chime = v)
         }
-        val vt = when (v) { "on" -> if (key == "cond") "포함" else "켜기"; "off" -> if (key == "cond") "제외" else "끄기"; else -> "Gleo가 물어보기" }
+        val vt = when (v) { "on" -> if (key == "cond") "포함" else "켜기"; "off" -> if (key == "cond") "제외" else "끄기"; else -> "Hy! mate가 물어보기" }
         consentLog = consentLog + ConsentRecord(label, vt, "터치 · 동승 설정")
     }
 
@@ -284,11 +296,11 @@ class HyViewModel : ViewModel() {
         val accepted = if (ans == true) quests.filter { it.consent }.map { it.id }.toSet() else emptySet()
         if (ans == true) {
             quests = quests.map { if (it.consent) it.copy(consent = false) else it }
-            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "포함", "음성 · 정차 중 Gleo")
+            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "포함", "음성 · 정차 중 Hy! mate")
             voice = VoiceUi.Confirm("네, 오늘 넣을게요.")
         } else {
             quests = quests.filterNot { it.consent } // 동의 전 판정값은 차 안에서 지워요
-            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "제외", if (ans == null) "무응답 · 정차 중 Gleo" else "음성 · 정차 중 Gleo")
+            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "제외", if (ans == null) "무응답 · 정차 중 Hy! mate" else "음성 · 정차 중 Hy! mate")
             voice = VoiceUi.Confirm(if (ans == null) "대답이 없어서 이번엔 뺄게요." else "이번엔 뺄게요.")
         }
         delay(2000)

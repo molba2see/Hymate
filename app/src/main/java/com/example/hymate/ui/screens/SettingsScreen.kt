@@ -42,7 +42,7 @@ fun SettingsScreen(vm: HyViewModel) {
                     Eyebrow("동승 설정", hy.gleo)
                     H1("동의는 필요한 순간에, 고른 것만")
                 }
-                HChip("Gleo 연동", HyIcons.Mic, color = hy.gleo, bg = mix(hy.gleo, 0.16f, hy.s2))
+                HChip("Hy! mate 음성", HyIcons.Mic, color = hy.gleo, bg = mix(hy.gleo, 0.16f, hy.s2))
             }
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(40.u)) {
                 Column(
@@ -51,12 +51,12 @@ fun SettingsScreen(vm: HyViewModel) {
                 ) {
                     SettingItem(
                         "정차 중 실시간 피드백",
-                        "브레이크를 3초 넘게 밟고 서 있을 때, 직전 구간에서 놓친 가이드 1개를 Gleo가 위쪽에 짧게 알려줘요. 주행 중에 따로 묻지 않아요.",
+                        "브레이크를 3초 넘게 밟고 서 있을 때, 직전 구간에서 놓친 가이드 1개를 Hy! mate가 위쪽에 짧게 알려줘요. 주행 중에 따로 묻지 않아요.",
                     ) { HSeg(listOf("off" to "끄기", "on" to "켜기"), c.feedback, { vm.setConsent("feedback", it) }, Modifier.fillMaxWidth()) }
                     SettingItem(
                         "비·야간 같은 상황 가이드",
                         "주행 중에 비가 오거나 어두워지면, 그 상황의 가이드를 오늘 퀘스트에 넣을지 정해요. 동의 전 기록은 차 안에만 잠시 둬요.",
-                    ) { HSeg(listOf("off" to "제외", "on" to "포함", "ask" to "Gleo가 물어보기"), c.cond, { vm.setConsent("cond", it) }, Modifier.fillMaxWidth()) }
+                    ) { HSeg(listOf("off" to "제외", "on" to "포함", "ask" to "Hy! mate가 물어보기"), c.cond, { vm.setConsent("cond", it) }, Modifier.fillMaxWidth()) }
                     SettingItem(
                         "어려운 지점 접근 알림음",
                         "전에 놓친 합류·분기 지점 200m 전에 ‘띵’ 소리만 내요. 지점이나 내용은 말하지 않아요. 처음 기본값은 꺼짐이고, 여기서 켠 경우에만 울려요.",
@@ -79,12 +79,12 @@ fun SettingsScreen(vm: HyViewModel) {
                         }
                     }
                     HCard(Modifier.fillMaxWidth()) {
-                        HText("Gleo가 말하는 방식", 32, Modifier.padding(bottom = 20.u), weight = FontWeight.Bold)
+                        HText("Hy! mate가 말하는 방식", 32, Modifier.padding(bottom = 20.u), weight = FontWeight.Bold)
                         Column(verticalArrangement = Arrangement.spacedBy(14.u)) {
                             Rule(HyIcons.Clock, "속도 0.5km/h 이하에서 브레이크를 3초 넘게 밟고 있을 때만 말해요.")
                             Rule(HyIcons.Speaker, "정차 한 번에 피드백 1개, 같은 가이드는 한 주행에 1번만 말해요.")
                             Rule(HyIcons.Play, "다시 출발하면 바로 멈춰요.")
-                            Rule(HyIcons.Mic, "상황 가이드를 ‘Gleo가 물어보기’로 두면, 비가 올 때만 짧게 묻고 6초 동안 대답을 들어요.")
+                            Rule(HyIcons.Mic, "상황 가이드를 ‘Hy! mate가 물어보기’로 두면, 비가 올 때만 짧게 묻고 6초 동안 대답을 들어요.")
                         }
                     }
                     HCard(Modifier.fillMaxWidth().weight(1f)) {
