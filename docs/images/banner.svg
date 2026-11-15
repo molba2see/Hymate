@@ -37,11 +37,11 @@
   <text x="243" y="140" font-size="24" fill="#A3A6AE">초보운전 동승 코치 · Pleos Connect 차량 앱</text>
   <!-- 우측 라이선스 칩 -->
   <g>
-    <rect x="952" y="66" width="188" height="76" rx="16" fill="#23262D" stroke="#3A3F4B"/>
-    <text x="978" y="98" font-size="17" fill="#8A90A0">DRIVING LICENSE</text>
-    <text x="978" y="128" font-size="26" font-weight="700" fill="#00E074">L0 → L1 → P1</text>
+    <rect x="922" y="66" width="218" height="76" rx="16" fill="#23262D" stroke="#3A3F4B"/>
+    <text x="946" y="97" font-size="16" fill="#8A90A0">DRIVING LICENSE</text>
+    <text x="946" y="127" font-size="23" font-weight="700" fill="#00E074">L0 &#8594; L1 &#8594; P1</text>
   </g>
-  <rect x="860" y="66" width="76" height="76" rx="16" fill="#23262D" stroke="#3A3F4B"/>
-  <text x="898" y="104" text-anchor="middle" font-size="15" fill="#8A90A0">Pleos</text>
-  <text x="898" y="124" text-anchor="middle" font-size="15" fill="#8A90A0">Connect</text>
+  <rect x="828" y="66" width="78" height="76" rx="16" fill="#23262D" stroke="#3A3F4B"/>
+  <text x="867" y="104" text-anchor="middle" font-size="15" fill="#8A90A0">Pleos</text>
+  <text x="867" y="124" text-anchor="middle" font-size="15" fill="#8A90A0">Connect</text>
 </svg>
