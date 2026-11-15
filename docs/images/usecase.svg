@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <rect width="1200" height="660" fill="#FBFCFD" rx="16"/>
+
+  <text x="48" y="50" font-family="Consolas,Menlo,monospace" font-size="14" letter-spacing="3" font-weight="700" fill="#0F8A52">&#9670; USE CASE / WHO DOES WHAT</text>
+  <text x="48" y="86" font-size="27" font-weight="800" fill="#131417">유스케이스</text>
+
+  <!-- 운전자 액터 -->
+  <g stroke="#131417" stroke-width="3" stroke-linecap="round" fill="none">
+    <circle cx="130" cy="210" r="17" fill="#FFFFFF"/>
+    <line x1="130" y1="227" x2="130" y2="274"/>
+    <line x1="100" y1="244" x2="160" y2="244"/>
+    <line x1="130" y1="274" x2="106" y2="312"/>
+    <line x1="130" y1="274" x2="154" y2="312"/>
+  </g>
+  <text x="130" y="342" text-anchor="middle" font-size="15.5" font-weight="700" fill="#131417">초보운전자</text>
+  <text x="130" y="362" text-anchor="middle" font-size="12" fill="#8A90A0">장롱면허 · 고령 운전자로 확장</text>
+
+  <!-- 차량 액터 -->
+  <g>
+    <path d="M1034 232 h88 a10 10 0 0 1 10 10 v14 a8 8 0 0 1 -8 8 h-92 a8 8 0 0 1 -8 -8 v-14 a10 10 0 0 1 10 -10 z" fill="#E8F6EF" stroke="#0F8A52" stroke-width="2"/>
+    <path d="M1052 232 l8 -16 h36 l8 16 z" fill="#E8F6EF" stroke="#0F8A52" stroke-width="2"/>
+    <circle cx="1056" cy="266" r="8" fill="#FFFFFF" stroke="#0F8A52" stroke-width="2"/>
+    <circle cx="1100" cy="266" r="8" fill="#FFFFFF" stroke="#0F8A52" stroke-width="2"/>
+  </g>
+  <text x="1078" y="306" text-anchor="middle" font-size="15.5" font-weight="700" fill="#131417">차량 · Pleos Connect</text>
+  <text x="1078" y="326" text-anchor="middle" font-size="12" fill="#8A90A0">Vehicle SDK · 차속 · TTS/STT</text>
+
+  <!-- 시스템 경계 -->
+  <rect x="252" y="118" width="696" height="470" rx="18" fill="#FFFFFF" stroke="#D7DCE3" stroke-width="1.5"/>
+  <text x="276" y="150" font-size="16" font-weight="800" fill="#131417">Hy! mate</text>
+
+  <!-- 주차 중 -->
+  <text x="276" y="184" font-family="Consolas,Menlo,monospace" font-size="11.5" letter-spacing="2" fill="#8A90A0">PARKED · 주차 중</text>
+  <ellipse cx="386" cy="216" rx="96" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="386" y="221" text-anchor="middle" font-size="13.5" fill="#131417">오늘 가이드 확인</text>
+  <ellipse cx="602" cy="216" rx="88" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="602" y="221" text-anchor="middle" font-size="13.5" fill="#131417">주차 중 실습</text>
+  <ellipse cx="800" cy="216" rx="76" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="800" y="221" text-anchor="middle" font-size="13.5" fill="#131417">동의 설정</text>
+
+  <!-- 주행 중 -->
+  <text x="276" y="276" font-family="Consolas,Menlo,monospace" font-size="11.5" letter-spacing="2" fill="#8A90A0">DRIVING · 주행 중</text>
+  <ellipse cx="398" cy="308" rx="92" ry="25" fill="#F3F7FE" stroke="#A8C6F0"/>
+  <text x="398" y="313" text-anchor="middle" font-size="13.5" fill="#131417">경로 안내 받기</text>
+  <ellipse cx="672" cy="308" rx="124" ry="27" fill="#FFFFFF" stroke="#8A90A0" stroke-dasharray="6 4"/>
+  <text x="672" y="305" text-anchor="middle" font-size="13.5" fill="#131417">운전 행동 자동 판정</text>
+  <text x="672" y="322" text-anchor="middle" font-size="11" fill="#8A90A0">운전자 개입 없음 · 차량 데이터</text>
+
+  <!-- 정차 -->
+  <text x="276" y="368" font-family="Consolas,Menlo,monospace" font-size="11.5" letter-spacing="2" fill="#8A90A0">STOPPED · 정차</text>
+  <ellipse cx="412" cy="400" rx="102" ry="25" fill="#F6F4FF" stroke="#C3B8F5"/>
+  <text x="412" y="405" text-anchor="middle" font-size="13.5" fill="#131417">음성 피드백 듣기</text>
+  <ellipse cx="668" cy="400" rx="98" ry="25" fill="#F6F4FF" stroke="#C3B8F5"/>
+  <text x="668" y="405" text-anchor="middle" font-size="13.5" fill="#131417">음성으로 답하기</text>
+
+  <!-- 주차 후 -->
+  <text x="276" y="460" font-family="Consolas,Menlo,monospace" font-size="11.5" letter-spacing="2" fill="#8A90A0">AFTER · 주차 후</text>
+  <ellipse cx="378" cy="496" rx="82" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="378" y="501" text-anchor="middle" font-size="13.5" fill="#131417">리포트 확인</text>
+  <ellipse cx="612" cy="496" rx="118" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="612" y="501" text-anchor="middle" font-size="13.5" fill="#131417">자가 체크 · 이의 제기</text>
+  <ellipse cx="836" cy="496" rx="86" ry="25" fill="#F4FBF7" stroke="#9AD9BB"/>
+  <text x="836" y="501" text-anchor="middle" font-size="13.5" fill="#131417">라이선스 확인</text>
+
+  <!-- 운전자 연결 (주차·정차 상호작용만) -->
+  <g stroke="#131417" stroke-width="1.6" opacity="0.75">
+    <line x1="162" y1="238" x2="290" y2="212"/>
+    <line x1="164" y1="250" x2="306" y2="305"/>
+    <line x1="162" y1="262" x2="310" y2="398"/>
+    <line x1="158" y1="272" x2="296" y2="490"/>
+  </g>
+
+  <!-- 차량 연결 (자동 데이터 흐름) -->
+  <g stroke="#0F8A52" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.85">
+    <line x1="1032" y1="242" x2="690" y2="214"/>
+    <line x1="1030" y1="252" x2="796" y2="301"/>
+    <line x1="1032" y1="262" x2="766" y2="396"/>
+    <line x1="1036" y1="270" x2="922" y2="490"/>
+  </g>
+
+  <!-- 범례 -->
+  <line x1="276" y1="556" x2="316" y2="556" stroke="#131417" stroke-width="1.8"/>
+  <text x="326" y="561" font-size="12.5" fill="#667085">운전자 상호작용 — 주차·정차 중에만</text>
+  <line x1="600" y1="556" x2="640" y2="556" stroke="#0F8A52" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <text x="650" y="561" font-size="12.5" fill="#667085">차량 데이터 자동 확인 — 실습 검증 · 판정 · 음성 입출력</text>
+
+  <text x="600" y="632" text-anchor="middle" font-size="13" fill="#8A90A0">주행 중 사용자가 하는 일은 운전뿐 — 판정 지점은 미리 알려주지 않아 몸에 익었는지를 확인한다</text>
+</svg>
