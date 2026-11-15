@@ -30,7 +30,13 @@ import com.example.hymate.vehicle.LiveDriveSession
 import com.example.hymate.vehicle.LiveQuestEvaluator
 import com.example.hymate.vehicle.hasFreshSpeed
 import kotlin.math.abs
+import com.example.hymate.speech.SpeechEngine
+import com.example.hymate.speech.SpeechConversation
+import com.example.hymate.speech.VoiceAnswer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -108,7 +114,31 @@ class HyViewModel : ViewModel() {
     var arrivedSec by mutableFloatStateOf(0f); private set
     private var driveJob: Job? = null
     private var feedbackJob: Job? = null
-    private var pendingAnswer: Boolean? = null // askCondition(음성 질문) 재도입용 스텁
+    private var speechEngine: SpeechEngine? = null
+    private var pendingAnswer: CompletableDeferred<Boolean>? = null
+    private var manualVoiceAnswer = false
+    private var voiceGeneration = 0L
+    var voiceTestRunning by mutableStateOf(false); private set
+    var voiceTestStatus by mutableStateOf("정차 중 안내를 듣고 ‘응’ 또는 ‘아니’로 답해 보세요."); private set
+
+    fun attachSpeech(engine: SpeechEngine) { speechEngine = engine }
+
+    fun detachSpeech(engine: SpeechEngine) {
+        if (speechEngine !== engine) return
+        cancelVoice()
+        speechEngine = null
+    }
+
+    fun cancelVoice() {
+        voiceGeneration++
+        feedbackJob?.cancel()
+        pendingAnswer?.cancel()
+        pendingAnswer = null
+        speechEngine?.stop()
+        voice = null
+        if (voiceTestRunning) voiceTestStatus = "음성 테스트를 중단했어요."
+        voiceTestRunning = false
+    }
     private var session = LiveDriveSession()
     private var evaluator = LiveQuestEvaluator()
 
@@ -121,11 +151,13 @@ class HyViewModel : ViewModel() {
 
     // ───────── 화면 이동 ─────────
     fun openSettings() {
+        cancelVoice()
         if (screen != Screen.Settings) settingsFrom = screen
         screen = Screen.Settings
     }
     fun openPre() { screen = Screen.Pre }
     fun back() {
+        if (screen == Screen.Settings) cancelVoice()
         when {
             licenseOpen -> licenseOpen = false
             screen == Screen.Settings -> screen = settingsFrom
@@ -145,6 +177,7 @@ class HyViewModel : ViewModel() {
     fun onUxRestrictions(available: Boolean, requiresDO: Boolean) {
         uxAvailable = available
         uxRequiresDO = requiresDO
+        if (screen == Screen.Settings && driving) cancelVoice()
     }
 
     /**
@@ -218,8 +251,9 @@ class HyViewModel : ViewModel() {
             abs(vehicle.speedMps ?: 0f) > 0.5f / 3.6f || !holding
         ) {
             stopped = false
-            voice = null
-            feedbackJob?.cancel()
+            val moving = vehicle.hasFreshSpeed(SystemClock.elapsedRealtimeNanos()) &&
+                abs(vehicle.speedMps ?: 0f) > 0.5f / 3.6f
+            if (screen != Screen.Settings || driving || moving) cancelVoice()
         }
     }
 
@@ -260,6 +294,7 @@ class HyViewModel : ViewModel() {
     // ───────── 주행 ─────────
     fun startDrive(withQuest: Boolean) {
         if (screen == Screen.Drive) return
+        cancelVoice()
         questStarted = withQuest
         // 기존 시나리오에서는 지점 목록만 재사용하고, 미리 정해진 결과는 버려요.
         quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond)
@@ -285,11 +320,93 @@ class HyViewModel : ViewModel() {
     }
 
     fun answer(yes: Boolean) {
-        // 강우·음성 API 미연동 상태에서는 자동 질문을 만들지 않아요.
+        if ((voice as? VoiceUi.Question)?.listening != true) return
+        manualVoiceAnswer = true
+        pendingAnswer?.complete(yes)
+    }
+
+    fun testVoice() {
+        val moving = vehicle.hasFreshSpeed(SystemClock.elapsedRealtimeNanos()) &&
+            abs(vehicle.speedMps ?: 0f) > 0.5f / 3.6f
+        if (screen != Screen.Settings || driving || moving || voiceTestRunning) return
+        cancelVoice()
+        val generation = voiceGeneration
+        voiceTestRunning = true
+        feedbackJob = viewModelScope.launch {
+            try {
+                val answer = askVoice("음성 안내 테스트예요. 안내가 잘 들리나요? 응 또는 아니라고 말씀해 주세요.")
+                coroutineContext.ensureActive()
+                val text = when (answer) {
+                    VoiceAnswer.YES -> if (manualVoiceAnswer) "화면 응답을 확인했어요. 음성 응답은 다시 말로 테스트해 주세요."
+                        else "네, 음성 안내와 응답 인식이 연결됐어요."
+                    VoiceAnswer.NO -> "아니라고 답하셨어요. 음량과 마이크를 확인해 주세요."
+                    VoiceAnswer.NO_RESPONSE -> "명확한 응답을 듣지 못했어요. 다시 테스트할 수 있어요."
+                    VoiceAnswer.UNAVAILABLE -> "음성 서비스를 연결하지 못했어요. Pleos 실행 환경과 음성 권한을 확인해 주세요."
+                }
+                voiceTestStatus = text
+                if (answer != VoiceAnswer.UNAVAILABLE) say(VoiceUi.Confirm(text))
+            } finally {
+                if (generation == voiceGeneration) {
+                    voice = null
+                    voiceTestRunning = false
+                }
+            }
+        }
+    }
+
+    private suspend fun say(message: VoiceUi): Boolean {
+        val generation = voiceGeneration
+        voice = message
+        val text = when (message) {
+            is VoiceUi.Feedback -> message.text
+            is VoiceUi.Question -> message.text
+            is VoiceUi.Confirm -> message.text
+        }
+        val played = speechEngine?.speak(text) == true
+        coroutineContext.ensureActive()
+        if (!played) {
+            showToast("음성 안내를 재생하지 못했어요. 화면의 안내를 확인해 주세요.")
+            delay(2500) // 연결 실패 시에만 화면으로 읽을 시간을 제공해요.
+        }
+        if (generation == voiceGeneration) voice = null
+        return played
+    }
+
+    private suspend fun askVoice(text: String): VoiceAnswer {
+        val engine = speechEngine ?: return VoiceAnswer.UNAVAILABLE
+        val generation = voiceGeneration
+        voice = VoiceUi.Question(text, listening = false, remain = 1f)
+        voiceTestStatus = "질문을 읽고 있어요."
+        val manual = CompletableDeferred<Boolean>()
+        pendingAnswer = manual
+        manualVoiceAnswer = false
+        var countdown: Job? = null
+        try {
+            return SpeechConversation(engine).ask(text, manual) listening@{
+                if (generation != voiceGeneration) return@listening
+                voiceTestStatus = "듣는 중 · ‘응’ 또는 ‘아니’라고 답해 주세요."
+                voice = VoiceUi.Question(text, listening = true, remain = 1f)
+                countdown = viewModelScope.launch {
+                    val start = SystemClock.elapsedRealtime()
+                    while (generation == voiceGeneration) {
+                        val remain = (1f - (SystemClock.elapsedRealtime() - start) / 6000f).coerceIn(0f, 1f)
+                        voice = VoiceUi.Question(text, listening = true, remain = remain)
+                        if (remain == 0f) break
+                        delay(50)
+                    }
+                }
+            }
+        } finally {
+            countdown?.cancel()
+            if (pendingAnswer === manual) pendingAnswer = null
+            manual.cancel()
+        }
     }
 
     private suspend fun runDrive() {
         val fed = mutableSetOf<String>()
+        var stopHandled = false
+        var conditionAsked = false
         while (_progress.floatValue < DEST) {
             delay(100)
             session.tick(vehicle, SystemClock.elapsedRealtimeNanos())
@@ -298,21 +415,31 @@ class HyViewModel : ViewModel() {
             remainingSeconds = session.remainingSeconds(DEST.toFloat(), vehicle)
             stopped = session.stopped
             if (!stopped) {
-                voice = null
-                feedbackJob?.cancel()
+                stopHandled = false
+                if (screen == Screen.Drive) cancelVoice()
             }
             if (questStarted) quests = evaluator.update(quests, vehicle, session)
-            if (stopped && questStarted && consents.feedback == "on" && feedbackJob?.isActive != true) {
+            if (stopped && screen == Screen.Drive && questStarted && speechEngine != null &&
+                !stopHandled && feedbackJob?.isActive != true
+            ) {
+                if (!conditionAsked && rainy && consents.cond == "ask" && quests.any { it.consent }) {
+                    conditionAsked = true
+                    stopHandled = true
+                    feedbackJob = viewModelScope.launch {
+                        try { askCondition() } finally {
+                            if (quests.any { it.consent }) conditionAsked = false
+                        }
+                    }
+                    continue
+                }
+                if (consents.feedback != "on") continue
                 val q = quests.filter {
                     it.res == 'F' && it.fb && !it.consent && it.g !in fed && guide(it.g).type == GType.AUTO
                 }.maxByOrNull { guide(it.g).risk }
                 if (q != null) {
                     fed += q.g
-                    feedbackJob = viewModelScope.launch {
-                        voice = VoiceUi.Feedback(fbText(q))
-                        delay(4200)
-                        voice = null
-                    }
+                    stopHandled = true
+                    feedbackJob = viewModelScope.launch { say(VoiceUi.Feedback(fbText(q))) }
                 }
             }
         }
@@ -321,32 +448,29 @@ class HyViewModel : ViewModel() {
 
     /** @return 동의해서 오늘 퀘스트에 포함된 상황 가이드 퀘스트 id */
     private suspend fun askCondition(): Set<String> {
-        val q = "비 오는 날 가이드도 넣을까요?"
-        voice = VoiceUi.Question(q, listening = false, remain = 1f)
-        delay(1400)
-        pendingAnswer = null
-        val total = 6000L
-        var el = 0L
-        while (el < total && pendingAnswer == null) {
-            voice = VoiceUi.Question(q, listening = true, remain = 1f - el / total.toFloat())
-            delay(50); el += 50
+        val reply = askVoice("와이퍼가 작동 중이에요. 비 오는 날 가이드도 오늘 퀘스트에 넣을까요?")
+        coroutineContext.ensureActive()
+        if (!stopped || screen != Screen.Drive || reply == VoiceAnswer.UNAVAILABLE) {
+            voice = null
+            if (reply == VoiceAnswer.UNAVAILABLE) showToast("음성 연결을 확인하지 못해 상황 가이드 동의를 보류했어요.")
+            return emptySet()
         }
-        val ans = pendingAnswer
-        val accepted = if (ans == true) quests.filter { it.consent }.map { it.id }.toSet() else emptySet()
-        if (ans == true) {
+        val accepted = if (reply == VoiceAnswer.YES) quests.filter { it.consent }.map { it.id }.toSet() else emptySet()
+        val channel = if (manualVoiceAnswer) "터치 · 정차 중 Hy! mate" else "음성 · 정차 중 Hy! mate"
+        if (reply == VoiceAnswer.YES) {
             quests = quests.map { if (it.consent) it.copy(consent = false) else it }
-            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "포함", "음성 · 정차 중 Hy! mate")
-            voice = VoiceUi.Confirm("네, 오늘 넣을게요.")
+            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "포함", channel)
+            say(VoiceUi.Confirm("네, 오늘 넣을게요."))
         } else {
             quests = quests.filterNot { it.consent } // 동의 전 판정값은 차 안에서 지워요
-            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "제외", if (ans == null) "무응답 · 정차 중 Hy! mate" else "음성 · 정차 중 Hy! mate")
-            voice = VoiceUi.Confirm(if (ans == null) "대답이 없어서 이번엔 뺄게요." else "이번엔 뺄게요.")
+            consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "제외", if (reply == VoiceAnswer.NO_RESPONSE) "무응답 · 정차 중 Hy! mate" else channel)
+            say(VoiceUi.Confirm(if (reply == VoiceAnswer.NO_RESPONSE) "명확한 대답이 없어서 이번엔 뺄게요." else "이번엔 뺄게요."))
         }
-        delay(2000)
         return accepted
     }
 
     private fun arrive() {
+        cancelVoice()
         quests = evaluator.finish(quests).filterNot { it.consent }
         feedbackJob?.cancel()
         stopped = false; voice = null
@@ -394,6 +518,7 @@ class HyViewModel : ViewModel() {
     }
 
     fun nextDrive() {
+        cancelVoice()
         driveJob?.cancel()
         feedbackJob?.cancel()
         stopped = false

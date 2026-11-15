@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import com.example.hymate.speech.PleosSpeechEngine
 import com.example.hymate.ui.HyApp
 import com.example.hymate.ui.theme.HyTheme
 import com.example.hymate.vehicle.CarSpeedSource
@@ -44,6 +45,8 @@ class MainActivity : ComponentActivity() {
     /** AAOS CarUxRestrictions → ViewModel. 주행 중 화면 잠금을 시스템 규제에 맞춰요. */
     private val uxSource by lazy { UxRestrictionsSource(this, onUx = vm::onUxRestrictions) }
 
+    private val speechEngine by lazy { PleosSpeechEngine(applicationContext) }
+
     private var permissionDialog: AlertDialog? = null
 
     private val speedPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -66,6 +69,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        vm.attachSpeech(speechEngine)
         vehicleSource.start()
         uxSource.start()
         // 권한이 이미 있으면 백그라운드 복귀 시 차속 구독을 이어가요.
@@ -73,6 +77,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        vm.detachSpeech(speechEngine)
         permissionDialog?.dismiss()
         permissionDialog = null
         speedSource.stop()

@@ -209,7 +209,7 @@ private fun GleoBanner(v: VoiceUi, onAnswer: (Boolean) -> Unit) {
             Column(Modifier.weight(1f)) {
                 HText(
                     when (v) {
-                        is VoiceUi.Feedback -> "Hy! mate · 실시간 피드백 · 음악 볼륨 낮춤"
+                        is VoiceUi.Feedback -> "Hy! mate · 실시간 음성 피드백"
                         is VoiceUi.Question -> if (v.listening) "Hy! mate · 듣는 중" else "Hy! mate"
                         is VoiceUi.Confirm -> "Hy! mate · 저장했어요"
                     },

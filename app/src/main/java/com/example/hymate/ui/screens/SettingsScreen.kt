@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import com.example.hymate.HyViewModel
+import com.example.hymate.VoiceUi
+import com.example.hymate.ui.components.HButton
 import com.example.hymate.ui.components.ArcadeTag
 import com.example.hymate.ui.components.Eyebrow
 import com.example.hymate.ui.components.GleoOrb
@@ -49,6 +51,23 @@ fun SettingsScreen(vm: HyViewModel) {
                     Modifier.weight(960f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(20.u),
                 ) {
+                    SettingItem(
+                        "음성 안내·응답 테스트",
+                        "질문을 끝까지 들은 뒤 ‘응’ 또는 ‘아니’라고 말해 보세요. 듣는 중에만 차량 마이크를 사용해요.",
+                    ) {
+                        HText(vm.voiceTestStatus, 28, color = hy.sub)
+                        HButton(
+                            if (vm.voiceTestRunning) "테스트 중단" else "음성 테스트",
+                            if (vm.voiceTestRunning) vm::cancelVoice else vm::testVoice,
+                            icon = HyIcons.Mic, height = 88, textSize = 30,
+                        )
+                        if ((vm.voice as? VoiceUi.Question)?.listening == true) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.u)) {
+                                HButton("응", { vm.answer(true) }, height = 80, textSize = 28)
+                                HButton("아니", { vm.answer(false) }, height = 80, textSize = 28)
+                            }
+                        }
+                    }
                     SettingItem(
                         "정차 중 실시간 피드백",
                         "브레이크를 3초 넘게 밟고 서 있을 때, 직전 구간에서 놓친 가이드 1개를 Hy! mate가 위쪽에 짧게 알려줘요. 주행 중에 따로 묻지 않아요.",
