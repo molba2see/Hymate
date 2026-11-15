@@ -86,6 +86,14 @@ class HyViewModel : ViewModel() {
     var practice by mutableStateOf(mapOf<String, PracticeState>()); private set
     var selectedGuide by mutableStateOf<String?>(null); private set
 
+    /** 차종별 미지원 가이드 (기획서: 지원 기능 확인 후 자동 제외). capability 조회 결과로 채워요. */
+    var unsupportedGuides by mutableStateOf(setOf<String>()); private set
+
+    /** Vehicle SDK check...Capabilities 결과 (메인 스레드) */
+    fun onGuideSupport(key: String, supported: Boolean) {
+        unsupportedGuides = if (supported) unsupportedGuides - key else unsupportedGuides + key
+    }
+
     // 주행
     private val _progress = mutableFloatStateOf(0f)
     /** 경로 진행 거리(m). 쓰기는 ViewModel 내부에서만, 화면은 읽기만 해요. */
@@ -252,9 +260,10 @@ class HyViewModel : ViewModel() {
         if (screen == Screen.Drive) return
         questStarted = withQuest
         // 기존 시나리오에서는 지점 목록만 재사용하고, 미리 정해진 결과는 버려요.
-        quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond).map {
-            it.copy(res = 'N', ev = "아직 판정 지점에 도달하지 않았어요")
-        } else emptyList()
+        quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond)
+            .filterNot { it.g in unsupportedGuides } // 차종 미지원 가이드는 퀘스트도 만들지 않아요
+            .map { it.copy(res = 'N', ev = "아직 판정 지점에 도달하지 않았어요") }
+        else emptyList()
         session = LiveDriveSession()
         evaluator = LiveQuestEvaluator()
         _progress.floatValue = 0f
@@ -336,7 +345,7 @@ class HyViewModel : ViewModel() {
     }
 
     private fun arrive() {
-        quests = quests.filterNot { it.consent }
+        quests = evaluator.finish(quests).filterNot { it.consent }
         feedbackJob?.cancel()
         stopped = false; voice = null
         arrivedSec = session.elapsedSeconds
@@ -406,7 +415,7 @@ class HyViewModel : ViewModel() {
 
     fun preGuides(): List<PreGuide> {
         val order = mapOf("fail" to 0, "ret" to 1, "cond" to 2, "new" to 3, "lv" to 4, "off" to 5, "grad" to 6, "exp" to 7)
-        return GUIDES.values.map { g ->
+        return GUIDES.values.filterNot { it.key in unsupportedGuides }.map { g ->
             val s = user.st.getValue(g.key)
             val tag = when {
                 g.type == GType.EXPERIENCE -> "exp"

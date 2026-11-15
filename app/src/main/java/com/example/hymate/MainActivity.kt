@@ -28,7 +28,12 @@ class MainActivity : ComponentActivity() {
 
     /** Pleos Connect Vehicle SDK(레버·벨트·기어 등) → ViewModel. 화면이 보이는 동안만 연결해요. */
     private val vehicleSource by lazy {
-        PleosVehicleSource(this, onSignal = vm::onVehicleSignal, onLink = vm::onVehicleLink)
+        PleosVehicleSource(
+            this,
+            onSignal = vm::onVehicleSignal,
+            onLink = vm::onVehicleLink,
+            onGuideSupport = vm::onGuideSupport,
+        )
     }
 
     /** AAOS 차속(PERF_VEHICLE_SPEED) → ViewModel. 권한이 있어야 시작돼요. */

@@ -9,12 +9,15 @@ import ai.pleos.playground.vehicle.api.model.area.WindowArea
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.TurnSignalValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
+import ai.pleos.playground.vehicle.api.model.capability.AccessType
+import ai.pleos.playground.vehicle.constant.control.CruiseControl
 import ai.pleos.playground.vehicle.constant.control.LightState
 import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.control.WiperState
 import ai.pleos.playground.vehicle.constant.control.WiperSwitch
 import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
+import ai.pleos.playground.vehicle.listener.CruiseControlStateListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
 import ai.pleos.playground.vehicle.listener.LightStateListener
 import ai.pleos.playground.vehicle.listener.SeatBeltNotBuckledWarningListener
@@ -49,6 +52,8 @@ class PleosVehicleSource(
     context: Context,
     private val onSignal: ((Vehicle) -> Vehicle) -> Unit,
     private val onLink: (VehicleLink) -> Unit,
+    /** 차종별 기능 지원 결과: (가이드 키, 지원 여부). 미지원 가이드는 기획서대로 자동 제외해요. */
+    private val onGuideSupport: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     private val appContext = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
@@ -85,6 +90,13 @@ class PleosVehicleSource(
         }
         override fun onFailed(e: Exception) = failed("Safety", e)
     }
+    private val cruiseListener = object : CruiseControlStateListener {
+        override fun onCruiseControlStateUpdated(state: CruiseControl?) {
+            if (state != null) update { it.copy(cruise = state.toApp(), knownSignals = it.knownSignals + VehicleSignal.CRUISE) }
+        }
+        override fun onFailed(e: Exception) = failed("DrivingMode", e)
+    }
+
     // 점등·작동 상태가 바뀌면 스위치 위치도 바뀌었을 수 있으니 바로 다시 읽어요
     private val lightListener = object : LightStateListener {
         override fun onLightStateUpdated(state: LightState?) { main.post { readSwitches() } }
@@ -116,10 +128,21 @@ class PleosVehicleSource(
             v.getLight().registerLowBeamLightState(lightListener)
             v.getWiper().registerWiperState(windshield, wiperListener)
             v.getGear().registerGearSelection(gearListener)
+            v.getDrivingMode().registerCruiseControlState(cruiseListener)
+
+            // 차종별 지원 기능 확인 → 미지원 가이드 자동 제외 (기획서: 그랜저·투싼 대응)
+            v.getDrivingMode().checkCruiseControlStateCapabilities(
+                { cfg -> main.post { onGuideSupport("HS_NSCC", cfg.accessType != AccessType.NONE) } },
+                { main.post { onGuideSupport("HS_NSCC", false) } },
+            )
 
             v.getGear().getCurrentGearSelectionState(
                 { g -> gearListener.onSelected(g) },
                 { e -> failed("Gear", e) },
+            )
+            v.getDrivingMode().getCruiseControlState(
+                { s -> cruiseListener.onCruiseControlStateUpdated(s) },
+                { e -> failed("DrivingMode", e) },
             )
             v.getTurnSignal().getCurrentTurnSignalState(
                 { s -> turnListener.onTurnSignalStateUpdated(s) },
@@ -154,6 +177,7 @@ class PleosVehicleSource(
             v.getLight().unregisterLowBeamLightState(lightListener)
             v.getWiper().unregisterWiperState(windshield, wiperListener)
             v.getGear().unregisterGearSelection(gearListener)
+            v.getDrivingMode().unregisterCruiseControlState(cruiseListener)
             v.release()
         } catch (t: Throwable) {
             Log.w(TAG, "Vehicle SDK 해제 중 오류", t)
@@ -201,6 +225,7 @@ class PleosVehicleSource(
                 "Safety" -> VehicleSignal.BELT
                 "Light" -> VehicleSignal.HEADLIGHT
                 "Wiper" -> VehicleSignal.WIPER
+                "DrivingMode" -> VehicleSignal.CRUISE
                 else -> null
             }
             onSignal { it.copy(knownSignals = if (signal == null) it.knownSignals else it.knownSignals - signal) }
@@ -232,6 +257,13 @@ private fun LightSwitch?.toApp(prev: String) = when (this) {
     LightSwitch.ON -> "ON"
     LightSwitch.OFF, LightSwitch.DAYTIME_RUNNING -> "OFF"
     null -> prev
+}
+
+/** ACTIVATED·USER_OVERRIDE = 속도 제어 중, ENABLED·SUSPENDED·경고 = 켜짐(대기), OTHER = 꺼짐으로 봐요. */
+private fun CruiseControl.toApp() = when (this) {
+    CruiseControl.ACTIVATED, CruiseControl.USER_OVERRIDE -> "ACTIVE"
+    CruiseControl.ENABLED, CruiseControl.SUSPENDED, CruiseControl.FORCED_DEACTIVATION_WARNING -> "ON"
+    CruiseControl.OTHER -> "OFF"
 }
 
 private fun WiperSwitch?.toApp(prev: String) = when (this) {

@@ -15,8 +15,19 @@ class LiveQuestEvaluator {
     private val peakSpeeds = mutableMapOf<String, Float>()
     private val incomplete = mutableSetOf<String>()
 
+    // 크루즈(HS_NSCC): 주행 내내 사용 시간을 누적하고, 도착 시 finish()에서 확정해요.
+    private var lastElapsed = 0f
+    private var cruiseObserved = false
+    private var cruiseActiveSeconds = 0f
+
     fun update(quests: List<Quest>, vehicle: Vehicle, session: LiveDriveSession): List<Quest> {
         val distance = session.distanceMeters
+        val dt = (session.elapsedSeconds - lastElapsed).coerceIn(0f, 1f)
+        lastElapsed = session.elapsedSeconds
+        if (VehicleSignal.CRUISE in vehicle.knownSignals) {
+            cruiseObserved = true
+            if (vehicle.cruise == "ACTIVE") cruiseActiveSeconds += dt
+        }
         if (!session.speedAvailable) {
             quests.filter { it.g == "SPEED" && it.id !in evaluated && distance >= speedStart(it) && distance <= it.d }
                 .forEach { incomplete += it.id }
@@ -37,6 +48,7 @@ class LiveQuestEvaluator {
         }
         return quests.map { q ->
             if (q.id in evaluated) return@map q
+            if (q.g == "HS_NSCC") return@map q // 지점 판정이 아니라 주행 전체를 보고 finish()에서 확정해요
             val ready = when (q.g) {
                 "SEATBELT" -> distance > 0f
                 "HEADLIGHT" -> departedAt?.let { session.elapsedSeconds - it >= 10f } == true
@@ -53,6 +65,19 @@ class LiveQuestEvaluator {
     }
 
     private fun speedStart(q: Quest): Int = when (q.limit) { 70 -> 3100; 60 -> 9200; else -> 11000 }
+
+    /** 도착 시 호출. 주행 전체 관측이 필요한 퀘스트(HS_NSCC)를 확정해요. */
+    fun finish(quests: List<Quest>): List<Quest> = quests.map { q ->
+        if (q.g != "HS_NSCC") return@map q
+        when {
+            cruiseActiveSeconds >= 1f -> q.copy(
+                res = 'E',
+                ev = "크루즈 작동 ${cruiseActiveSeconds.toInt() / 60}분 ${cruiseActiveSeconds.toInt() % 60}초 관측 · 직접 켜고 끔",
+            )
+            cruiseObserved -> q.copy(res = 'H', ev = "크루즈 작동이 관측되지 않았어요 · 사용했다면 직접 알려주세요")
+            else -> q.copy(res = 'H', ev = "크루즈 상태 미수신 · 직접 알려주세요")
+        }
+    }
 
     private fun judge(q: Quest, v: Vehicle): Quest {
         fun result(ok: Boolean, evidence: String) = q.copy(res = if (ok) 'S' else 'F', ev = evidence)

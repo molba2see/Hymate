@@ -61,7 +61,7 @@ val Guide.pts get() = if (lv == LV_HS) XP.HS else lv
 
 // ───────────────────────── 차량 신호 ─────────────────────────
 
-enum class VehicleSignal { TURN, HEADLIGHT, WIPER, BELT, BRAKE, GEAR }
+enum class VehicleSignal { TURN, HEADLIGHT, WIPER, BELT, BRAKE, GEAR, CRUISE }
 
 data class Vehicle(
     val signal: String = "OFF", // L / R / OFF
@@ -74,6 +74,8 @@ data class Vehicle(
     /** AAOS PERF_VEHICLE_SPEED: 전진은 양수, 후진은 음수, 미수신은 null. */
     val speedMps: Float? = null,
     val speedUpdatedAtNanos: Long = 0L,
+    /** 크루즈 컨트롤: OFF / ON(켜짐·대기) / ACTIVE(속도 제어 중) — DrivingMode 도메인. */
+    val cruise: String = "OFF",
 )
 
 /** 주차 중 연습 한 단계. 실제 차에서는 Vehicle SDK 리스너로 [ok]를 판정해요. */
