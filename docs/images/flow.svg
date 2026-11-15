@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <defs>
+    <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#00B868"/>
+    </marker>
+    <marker id="fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8A90A0"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="330" fill="#F7F8FA" rx="18"/>
+  <text x="48" y="52" font-size="26" font-weight="800" fill="#131417">한 번의 주행</text>
+  <text x="48" y="80" font-size="16" fill="#5F626B">학습은 주차 중에, 주행 중에는 관찰만, 피드백은 정차와 리포트에서</text>
+
+  <!-- 5단계 카드 -->
+  <g font-size="15">
+    <rect x="48"  y="116" width="200" height="128" rx="14" fill="#FFFFFF" stroke="#E0E1E6"/>
+    <text x="64" y="148" font-size="13" fill="#0F8A52" font-weight="700">STEP 1 · 주차 중</text>
+    <text x="64" y="176" font-size="18" font-weight="800" fill="#131417">출발 전</text>
+    <text x="64" y="202" fill="#5F626B">오늘 가이드 확인</text>
+    <text x="64" y="224" fill="#5F626B">주차 중 실습 · 동의</text>
+
+    <rect x="286" y="116" width="200" height="128" rx="14" fill="#FFFFFF" stroke="#E0E1E6"/>
+    <text x="302" y="148" font-size="13" fill="#0F8A52" font-weight="700">STEP 2</text>
+    <text x="302" y="176" font-size="18" font-weight="800" fill="#131417">경로 탐색</text>
+    <text x="302" y="202" fill="#5F626B">실도로 길찾기 · OSRM</text>
+    <text x="302" y="224" fill="#5F626B">회전·합류=판정 지점</text>
+
+    <rect x="524" y="116" width="200" height="128" rx="14" fill="#FFFFFF" stroke="#00B868" stroke-width="2"/>
+    <text x="540" y="148" font-size="13" fill="#0F8A52" font-weight="700">STEP 3 · 비간섭</text>
+    <text x="540" y="176" font-size="18" font-weight="800" fill="#131417">주행</text>
+    <text x="540" y="202" fill="#5F626B">화면 조작 없음</text>
+    <text x="540" y="224" fill="#5F626B">신호 관찰 · 이탈 시 재탐색</text>
+
+    <rect x="762" y="116" width="200" height="128" rx="14" fill="#FFFFFF" stroke="#E0E1E6"/>
+    <text x="778" y="148" font-size="13" fill="#6A57FF" font-weight="700">STEP 4 · 정차 시</text>
+    <text x="778" y="176" font-size="18" font-weight="800" fill="#131417">음성 한 마디</text>
+    <text x="778" y="202" fill="#5F626B">놓친 가이드 1개만</text>
+    <text x="778" y="224" fill="#5F626B">재출발하면 즉시 중단</text>
+
+    <rect x="1000" y="116" width="152" height="128" rx="14" fill="#FFFFFF" stroke="#E0E1E6"/>
+    <text x="1016" y="148" font-size="13" fill="#0F8A52" font-weight="700">STEP 5 · 주차 후</text>
+    <text x="1016" y="176" font-size="18" font-weight="800" fill="#131417">리포트</text>
+    <text x="1016" y="202" fill="#5F626B">자가 체크 · 이의</text>
+    <text x="1016" y="224" fill="#5F626B">XP · 라이선스</text>
+  </g>
+
+  <!-- 진행 화살표 -->
+  <line x1="248" y1="180" x2="282" y2="180" stroke="#00B868" stroke-width="3" marker-end="url(#fa)"/>
+  <line x1="486" y1="180" x2="520" y2="180" stroke="#00B868" stroke-width="3" marker-end="url(#fa)"/>
+  <line x1="724" y1="180" x2="758" y2="180" stroke="#00B868" stroke-width="3" marker-end="url(#fa)"/>
+  <line x1="962" y1="180" x2="996" y2="180" stroke="#00B868" stroke-width="3" marker-end="url(#fa)"/>
+
+  <!-- 정차→주행 루프 -->
+  <path d="M 862 244 L 862 282 L 624 282 L 624 248" fill="none" stroke="#8A90A0" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#fb)"/>
+  <text x="743" y="302" text-anchor="middle" font-size="14" fill="#5F626B">다시 출발 — 도착할 때까지 반복</text>
+</svg>
