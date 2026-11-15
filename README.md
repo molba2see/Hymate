@@ -5,13 +5,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin"/>
-  <img src="https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose"/>
-  <img src="https://img.shields.io/badge/Android%20Automotive-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android Automotive"/>
-  <img src="https://img.shields.io/badge/Pleos%20Connect-002C5F?style=flat-square&logo=hyundai&logoColor=white" alt="Pleos Connect"/>
-</p>
-
-<p align="center">
   <img src="docs/images/drive-nav.png" width="800" alt="주행 화면 — 실도로 내비게이션 위에서 조용히 기록"/>
 </p>
 
@@ -158,10 +151,12 @@ git clone https://github.com/molba2see/Hymate.git
 
 ## 기술 스택
 
-- **플랫폼** — Kotlin, Jetpack Compose, Android Automotive (minSdk 28 / targetSdk 34)
-- **차량 연동** — Pleos Vehicle SDK 2.3.2, TextToSpeech·SpeechToText 3.3.1, FusedLocation 1.1.3, AAOS CarPropertyManager(차속)·CarUxRestrictions
-- **지도·길찾기** — MapLibre Native, OpenStreetMap 래스터 타일, OSRM Route API, OkHttp
-- **테스트** — JUnit4 로컬 단위 테스트
+| 영역 | |
+|---|---|
+| 플랫폼 | ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white) ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white) ![Android Automotive](https://img.shields.io/badge/Android%20Automotive-3DDC84?style=flat-square&logo=android&logoColor=white) ![minSdk](https://img.shields.io/badge/minSdk%2028%20·%20target%2034-555?style=flat-square) |
+| 차량 연동 | ![Pleos Vehicle SDK](https://img.shields.io/badge/Pleos%20Vehicle%20SDK-2.3.2-002C5F?style=flat-square&logo=hyundai&logoColor=white) ![Speech SDK](https://img.shields.io/badge/TTS%20·%20STT-3.3.1-6A57FF?style=flat-square) ![FusedLocation](https://img.shields.io/badge/FusedLocation-1.1.3-0A9396?style=flat-square) ![AAOS Car API](https://img.shields.io/badge/AAOS%20Car%20API-차속%20·%20UxRestrictions-3DDC84?style=flat-square&logo=android&logoColor=white) |
+| 지도 · 길찾기 | ![MapLibre](https://img.shields.io/badge/MapLibre%20Native-295DAA?style=flat-square&logo=maplibre&logoColor=white) ![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-7EBC6F?style=flat-square&logo=openstreetmap&logoColor=white) ![OSRM](https://img.shields.io/badge/OSRM%20Route%20API-4A6FA5?style=flat-square) ![OkHttp](https://img.shields.io/badge/OkHttp-3E4348?style=flat-square&logo=square&logoColor=white) |
+| 테스트 | ![JUnit](https://img.shields.io/badge/JUnit4-25A162?style=flat-square&logo=junit5&logoColor=white) ![Tests](https://img.shields.io/badge/판정%20·%20성장%20·%20경로%20·%20음성%20동의-로컬%20단위%20테스트-555?style=flat-square) |
 
 ## 팀 국대오빠차
 
