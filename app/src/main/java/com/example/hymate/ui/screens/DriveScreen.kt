@@ -99,7 +99,7 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
     val speedText by remember { derivedStateOf {
         if (vm.motionAvailable) "${(abs(vm.vehicle.speedMps ?: 0f) * 3.6f).roundToInt()}km/h" else "차속 미수신"
     } }
-    Box(Modifier.fillMaxSize().background(hy.mapBg)) {
+    Box(Modifier.fillMaxSize().background(MapBg)) {
         NavMap({ vm.progress }, Modifier.fillMaxSize())
         if (vm.raining) RainOverlay()
 
@@ -127,11 +127,6 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
                 }
             }
         }
-        Box(
-            Modifier.offset(32.u, 232.u).clip(RoundedCornerShape(12.u)).background(mix(hy.s1, 0.85f, Color.Transparent))
-                .padding(horizontal = 16.u, vertical = 8.u),
-        ) { HText("예시 경로 · 실제 차량 속도로 이동", 22, color = hy.sub) }
-
         // ETA
         Row(
             Modifier.align(Alignment.BottomStart).padding(32.u)
@@ -253,6 +248,12 @@ private fun AnswerButton(text: String, onClick: () -> Unit) {
     ) { HText("“$text”", 36, weight = FontWeight.Bold) }
 }
 
+/** 주간(밝은) 목업 지도 색 — 테마와 독립이라 리포트 지도는 그대로 둬요. */
+private val MapBg = Color(0xFFEAEEF3)
+private val MapStreet = Color(0xFFFFFFFF)
+private val MapCase = Color(0xFFCDD4DE)
+private val MapDone = Color(0xFF98A2B0)
+
 private class Street(val a: Offset, val b: Offset, val w: Float)
 
 /** OEM 내비게이션 목업 지도: 차량 기준으로 경로를 이동·회전 */
@@ -289,9 +290,9 @@ private fun NavMap(progress: () -> Float, modifier: Modifier) {
             scale(nk * s, nk * s, Offset.Zero)
             translate(-p.x, -p.y)
         }) {
-            streets.forEach { drawLine(c.mapStreet, it.a, it.b, it.w * 3f / nk, cap = StrokeCap.Round) }
+            streets.forEach { drawLine(MapStreet, it.a, it.b, it.w * 3f / nk, cap = StrokeCap.Round) }
             val path = routePath
-            drawPath(path, c.mapCase, style = Stroke(26f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, MapCase, style = Stroke(26f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
             drawPath(path, c.blue, style = Stroke(16f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
             donePath.rewind()
             donePath.moveTo(ROUTE_POINTS.first().x, ROUTE_POINTS.first().y)
@@ -301,7 +302,7 @@ private fun NavMap(progress: () -> Float, modifier: Modifier) {
                 i++
             }
             donePath.lineTo(p.x, p.y)
-            drawPath(donePath, c.mapDone, style = Stroke(16f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(donePath, MapDone, style = Stroke(16f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
             val end = posAt(DEST.toFloat())
             drawCircle(c.bad, 4f, end)
             drawCircle(Color.White, 4f, end, style = Stroke(1.2f))
