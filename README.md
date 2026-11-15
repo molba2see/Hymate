@@ -172,8 +172,8 @@ git clone https://github.com/molba2see/Hymate.git
 | 김해나 | 기획 |
 | 송민승 | PO |
 | [이상원](https://github.com/leesangwon393) | 앱개발 (PA) |
-| [김정호](https://github.com/molba2see) | PM |
-| 이은진 | 앱개발 (PA) |
+| 김정호 | PM |
+| [이은진](https://github.com/molba2see) | 앱개발 (PA) |
 
 ## 외부 서비스 고지
 
