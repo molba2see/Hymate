@@ -7,6 +7,9 @@
         android:name="android.hardware.type.automotive"
         android:required="false" />
 
+    <!-- AAOS 차속 읽기: 런타임에 사용자 동의를 받아요. -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+
     <!-- Pleos Connect Vehicle SDK: 사용하는 도메인의 권한만 선언 -->
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />  <!-- Light · TurnSignal -->
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" /> <!-- Wiper -->
@@ -27,6 +30,8 @@
         <uses-library
             android:name="android.car"
             android:required="false" />
+
+        <uses-library android:name="android.car" android:required="false" />
 
         <activity
             android:name=".MainActivity"

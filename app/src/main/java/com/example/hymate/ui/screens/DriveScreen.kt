@@ -27,11 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.content.pm.ApplicationInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,10 +49,10 @@ import com.example.hymate.HyViewModel
 import com.example.hymate.VoiceUi
 import com.example.hymate.data.DEST
 import com.example.hymate.data.ROUTE_POINTS
-import com.example.hymate.data.clockText
 import com.example.hymate.data.nextManeuver
 import com.example.hymate.data.posAt
 import com.example.hymate.ui.components.GleoOrb
+import com.example.hymate.ui.components.HButton
 import com.example.hymate.ui.components.HIcon
 import com.example.hymate.ui.components.HText
 import com.example.hymate.ui.components.HyMark
@@ -64,6 +62,10 @@ import com.example.hymate.ui.theme.hy
 import com.example.hymate.ui.theme.mix
 import com.example.hymate.ui.theme.u
 import java.util.Locale
+import java.util.Date
+import java.text.DateFormat
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -77,7 +79,7 @@ import kotlin.random.Random
  * 배너는 실차에서는 AAOS heads-up 알림으로 띄우는 것을 기본안으로 둬요.
  */
 @Composable
-fun DriveScreen(vm: HyViewModel) {
+fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
     // progress는 매 프레임 바뀌어요. 화면 전체가 아니라 표시 값이 달라질 때만 리컴포즈되도록 파생 상태로 읽어요.
     val nmState by remember { derivedStateOf { nextManeuver(vm.progress) } }
     val distText by remember {
@@ -88,9 +90,15 @@ fun DriveScreen(vm: HyViewModel) {
         }
     }
     val remKmText by remember { derivedStateOf { "%.1fkm".format(Locale.US, (DEST - vm.progress) / 1000f) } }
-    val remMin by remember { derivedStateOf { kotlin.math.ceil((DEST - vm.progress) / 1000f / 28f * 60f).toInt() } }
-    val context = LocalContext.current
-    val debuggable = remember { (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 }
+    val remMin by remember { derivedStateOf { vm.remainingSeconds?.let { kotlin.math.ceil(it / 60f).toInt() } } }
+    val arrivalText by remember { derivedStateOf {
+        vm.remainingSeconds?.let {
+            DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(System.currentTimeMillis() + (it * 1000).toLong()))
+        } ?: "대기 중"
+    } }
+    val speedText by remember { derivedStateOf {
+        if (vm.motionAvailable) "${(abs(vm.vehicle.speedMps ?: 0f) * 3.6f).roundToInt()}km/h" else "차속 미수신"
+    } }
     Box(Modifier.fillMaxSize().background(hy.mapBg)) {
         NavMap({ vm.progress }, Modifier.fillMaxSize())
         if (vm.raining) RainOverlay()
@@ -122,7 +130,7 @@ fun DriveScreen(vm: HyViewModel) {
         Box(
             Modifier.offset(32.u, 232.u).clip(RoundedCornerShape(12.u)).background(mix(hy.s1, 0.85f, Color.Transparent))
                 .padding(horizontal = 16.u, vertical = 8.u),
-        ) { HText("OEM 내비게이션 화면 · Hy! mate는 백그라운드", 22, color = hy.sub) }
+        ) { HText("예시 경로 · 실제 차량 속도로 이동", 22, color = hy.sub) }
 
         // ETA
         Row(
@@ -132,9 +140,9 @@ fun DriveScreen(vm: HyViewModel) {
                 .padding(horizontal = 40.u, vertical = 22.u),
             horizontalArrangement = Arrangement.spacedBy(52.u),
         ) {
-            EtaItem(clockText(DEST / (28f / 3.6f)), "도착 예정")
+            EtaItem(arrivalText, "도착 예상")
             EtaItem(remKmText, "남은 거리")
-            EtaItem("${remMin}분", "남은 시간")
+            EtaItem(remMin?.let { "${it}분" } ?: "대기 중", "남은 시간")
         }
 
         // Hy! mate 상태 알약 — 화면 조작 없이 기록 중임을 알리는 최소 표시
@@ -142,7 +150,7 @@ fun DriveScreen(vm: HyViewModel) {
             Modifier.align(Alignment.BottomEnd).padding(32.u).height(96.u)
                 .shadow(12.u, RoundedCornerShape(50))
                 .clip(RoundedCornerShape(50)).background(mix(hy.s1, 0.95f, Color.Transparent))
-                .then(if (debuggable) Modifier.clickable(onClick = vm::skipToArrive) else Modifier) // 개발용(디버그 빌드만): 탭하면 도착 처리
+                .then(if (!vm.motionAvailable) Modifier.clickable(onClick = onRequestVehicleAccess) else Modifier)
                 .padding(start = 16.u, end = 32.u),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.u),
@@ -150,7 +158,9 @@ fun DriveScreen(vm: HyViewModel) {
             HyMark(64, off = !vm.questStarted, stop = vm.questStarted && vm.stopped)
             HText(
                 when {
+                    !vm.motionAvailable -> "차속 연결 대기 · 눌러서 확인"
                     !vm.questStarted -> "기록 안 함"
+                    abs(vm.vehicle.speedMps ?: 0f) <= 0.5f / 3.6f && !vm.stopped -> "차량 정지 · 출발 대기"
                     vm.stopped -> "정차 · 짧게 말할 수 있어요"
                     else -> "동승 중 · 화면 조작 없이 기록"
                 },

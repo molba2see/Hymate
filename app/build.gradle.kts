@@ -36,6 +36,8 @@ android {
     buildFeatures {
         compose = true
     }
+    // AAOS에서 제공하는 라이브러리. 일반 개발 기기에도 설치할 수 있어요.
+    useLibrary("android.car", false)
 }
 
 dependencies {

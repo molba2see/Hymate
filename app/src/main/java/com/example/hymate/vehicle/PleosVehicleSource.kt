@@ -21,6 +21,7 @@ import ai.pleos.playground.vehicle.listener.SeatBeltNotBuckledWarningListener
 import ai.pleos.playground.vehicle.listener.TurnSignalStateListener
 import ai.pleos.playground.vehicle.listener.WiperStateListener
 import com.example.hymate.data.Vehicle
+import com.example.hymate.data.VehicleSignal
 import ai.pleos.playground.vehicle.Vehicle as PleosVehicle
 
 /** 차량 데이터 연결 상태 */
@@ -28,7 +29,7 @@ sealed interface VehicleLink {
     /** SDK를 아직 시작하지 않음 — 버튼 시뮬레이션만 */
     data object Simulated : VehicleLink
     data object Connecting : VehicleLink
-    /** Vehicle Service에서 값을 한 번 이상 받음 */
+    /** 해당 데이터 소스에서 유효한 값을 한 번 이상 받음 */
     data object Connected : VehicleLink
     /** Pleos 차량·에뮬레이터가 아니거나 권한·서비스 문제 */
     data class Unavailable(val reason: String) : VehicleLink
@@ -40,7 +41,7 @@ sealed interface VehicleLink {
  * - 방향지시등 · 브레이크 페달 · 운전석 안전벨트 경고 · 기어: 콜백으로 받아요.
  * - 전조등 · 와이퍼의 **스위치 위치**(AUTO 여부)는 SDK에 변화 콜백이 없어서,
  *   점등/작동 상태 콜백이 올 때와 1초 간격 조회로 읽어요.
- * - 차속은 Vehicle SDK에 없어요. (AAOS CarPropertyManager 등 별도 연동 필요)
+ * - 차속은 별도 [CarSpeedSource]가 AAOS CarPropertyManager로 읽어요.
  *
  * 콜백 스레드가 문서에 명시돼 있지 않아서 모든 결과를 메인 스레드로 넘겨요.
  */
@@ -58,20 +59,30 @@ class PleosVehicleSource(
     private val windshield = WindowArea(WindowValue.FRONT_WINDSHIELD)
 
     private val turnListener = object : TurnSignalStateListener {
-        override fun onTurnSignalStateUpdated(state: TurnSignalValue?) = update { it.copy(signal = state.toApp(it.signal)) }
+        override fun onTurnSignalStateUpdated(state: TurnSignalValue?) {
+            if (state != null) update { it.copy(signal = state.toApp(it.signal), knownSignals = it.knownSignals + VehicleSignal.TURN) }
+        }
         override fun onFailed(e: Exception) = failed("TurnSignal", e)
     }
     private val brakeListener = object : BrakePedalStatusListener {
-        override fun onBrakePedalStatusUpdated(pressed: Boolean?) = update { it.copy(brake = pressed ?: it.brake) }
+        override fun onBrakePedalStatusUpdated(pressed: Boolean?) {
+            if (pressed != null) update { it.copy(brake = pressed, knownSignals = it.knownSignals + VehicleSignal.BRAKE) }
+        }
         override fun onFailed(e: Exception) = failed("Brake", e)
     }
     private val gearListener = object : GearSelectionListener {
-        override fun onSelected(gear: VehicleGear?) = update { it.copy(parked = gear.isParked(it.parked)) }
+        override fun onSelected(gear: VehicleGear?) {
+            if (gear != null && gear != VehicleGear.GEAR_UNKNOWN) update {
+                it.copy(parked = gear.isParked(it.parked), knownSignals = it.knownSignals + VehicleSignal.GEAR)
+            }
+        }
         override fun onFailed(e: Exception) = failed("Gear", e)
     }
     private val beltListener = object : SeatBeltNotBuckledWarningListener {
         // 경고가 켜져 있으면 벨트를 매지 않은 상태
-        override fun onSeatBeltNotBuckledWarningUpdated(warning: Boolean?) = update { it.copy(belt = warning?.not() ?: it.belt) }
+        override fun onSeatBeltNotBuckledWarningUpdated(warning: Boolean?) {
+            if (warning != null) update { it.copy(belt = !warning, knownSignals = it.knownSignals + VehicleSignal.BELT) }
+        }
         override fun onFailed(e: Exception) = failed("Safety", e)
     }
     // 점등·작동 상태가 바뀌면 스위치 위치도 바뀌었을 수 있으니 바로 다시 읽어요
@@ -107,20 +118,20 @@ class PleosVehicleSource(
             v.getGear().registerGearSelection(gearListener)
 
             v.getGear().getCurrentGearSelectionState(
-                { g -> update { it.copy(parked = g.isParked(it.parked)) } },
+                { g -> gearListener.onSelected(g) },
                 { e -> failed("Gear", e) },
             )
             v.getTurnSignal().getCurrentTurnSignalState(
-                { s -> update { it.copy(signal = s.toApp(it.signal)) } },
+                { s -> turnListener.onTurnSignalStateUpdated(s) },
                 { e -> failed("TurnSignal", e) },
             )
             v.getBrake().getCurrentBrakePedalStatus(
-                { p -> update { it.copy(brake = p ?: it.brake) } },
+                { p -> brakeListener.onBrakePedalStatusUpdated(p) },
                 { e -> failed("Brake", e) },
             )
             v.getSafety().hasSeatBeltNotBuckledWarning(
                 driverSeat,
-                { w -> update { it.copy(belt = w?.not() ?: it.belt) } },
+                { w -> beltListener.onSeatBeltNotBuckledWarningUpdated(w) },
                 { e -> failed("Safety", e) },
             )
             main.post(poll)
@@ -154,12 +165,12 @@ class PleosVehicleSource(
         val v = vehicle ?: return
         try {
             v.getLight().getLowBeamLightSwitch(
-                { sw -> update { it.copy(headlight = sw.toApp(it.headlight)) } },
+                { sw -> if (sw != null) update { it.copy(headlight = sw.toApp(it.headlight), knownSignals = it.knownSignals + VehicleSignal.HEADLIGHT) } },
                 { e -> failed("Light", e) },
             )
             v.getWiper().getCurrentWiperSwitch(
                 windshield,
-                { sw -> update { it.copy(wiper = sw.toApp(it.wiper)) } },
+                { sw -> if (sw != null) update { it.copy(wiper = sw.toApp(it.wiper), knownSignals = it.knownSignals + VehicleSignal.WIPER) } },
                 { e -> failed("Wiper", e) },
             )
         } catch (t: Throwable) {
@@ -182,7 +193,18 @@ class PleosVehicleSource(
     private fun failed(what: String, e: Exception) {
         Log.w(TAG, "$what 조회 실패: ${e.message}")
         main.post {
-            if (vehicle != null && !connected) onLink(VehicleLink.Unavailable(e.message ?: e.javaClass.simpleName))
+            if (vehicle == null) return@post
+            val signal = when (what) {
+                "TurnSignal" -> VehicleSignal.TURN
+                "Brake" -> VehicleSignal.BRAKE
+                "Gear" -> VehicleSignal.GEAR
+                "Safety" -> VehicleSignal.BELT
+                "Light" -> VehicleSignal.HEADLIGHT
+                "Wiper" -> VehicleSignal.WIPER
+                else -> null
+            }
+            onSignal { it.copy(knownSignals = if (signal == null) it.knownSignals else it.knownSignals - signal) }
+            if (!connected) onLink(VehicleLink.Unavailable(e.message ?: e.javaClass.simpleName))
         }
     }
 

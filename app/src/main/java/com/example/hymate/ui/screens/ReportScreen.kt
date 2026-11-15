@@ -48,7 +48,9 @@ import com.example.hymate.data.GD
 import com.example.hymate.data.GType
 import com.example.hymate.data.Quest
 import com.example.hymate.data.ROUTE_POINTS
-import com.example.hymate.data.clockText
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.hymate.data.guide
 import com.example.hymate.data.holdLabels
 import com.example.hymate.data.lvLabel
@@ -100,7 +102,7 @@ fun ReportScreen(vm: HyViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.u)) {
                 Column(Modifier.weight(1f)) {
                     ArcadeTag("04 / DRIVE REPORT", Modifier.padding(bottom = 6.u))
-                    Eyebrow("주차 후 리포트 · 2026.11.04 ${clockText(vm.arrivedSec)} 도착 · 21.4km", hy.blue)
+                    Eyebrow("주행 리포트 · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(vm.arrivedAtMillis))} 종료 · ${"%.2f".format(Locale.US, vm.progress / 1000f)}km", hy.blue)
                     H1("오늘 출근길, 이렇게 달렸어요", 50)
                     Row(Modifier.padding(top = 14.u), horizontalArrangement = Arrangement.spacedBy(14.u)) {
                         HChip("지킴 $okN", height = 60, textSize = 28, leading = { OxMark('S') })
@@ -122,7 +124,7 @@ fun ReportScreen(vm: HyViewModel) {
                             .padding(horizontal = 18.u, vertical = 10.u),
                     ) {
                         HText(
-                            vm.reportDetail?.let { "${guide(it).short} · 지점 확대" } ?: "국민대학교 → 현대자동차 양재 본사 · 21.4km · ${(vm.arrivedSec / 60).toInt()}분",
+                            vm.reportDetail?.let { "${guide(it).short} · 지점 확대" } ?: "예시 경로 · 실측 ${"%.2f".format(Locale.US, vm.progress / 1000f)}km · ${(vm.arrivedSec / 60).toInt()}분",
                             28, weight = FontWeight.Bold,
                         )
                     }

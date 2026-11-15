@@ -59,15 +59,21 @@ val Guide.lvLabel get() = lvLabel(lv)
 /** 주행에서 이 가이드로 얻는 XP: 일반 퀘스트는 Lv만큼, Hyundai ONLY는 3 */
 val Guide.pts get() = if (lv == LV_HS) XP.HS else lv
 
-// ───────────────────────── 차량 신호 (Vehicle SDK 대역) ─────────────────────────
+// ───────────────────────── 차량 신호 ─────────────────────────
+
+enum class VehicleSignal { TURN, HEADLIGHT, WIPER, BELT, BRAKE, GEAR }
 
 data class Vehicle(
     val signal: String = "OFF", // L / R / OFF
     val headlight: String = "OFF", // OFF / ON / AUTO
     val wiper: String = "OFF", // OFF / AUTO / LOW
     val belt: Boolean = true,
-    val brake: Boolean = false, // 브레이크 페달 (정차 판정용 · 차속 연동 전이라 아직 판정에는 쓰지 않아요)
-    val parked: Boolean = true, // 기어 P 여부 (주행 중 화면 잠금용)
+    val brake: Boolean = false,
+    val parked: Boolean = true,
+    val knownSignals: Set<VehicleSignal> = emptySet(),
+    /** AAOS PERF_VEHICLE_SPEED: 전진은 양수, 후진은 음수, 미수신은 null. */
+    val speedMps: Float? = null,
+    val speedUpdatedAtNanos: Long = 0L,
 )
 
 /** 주차 중 연습 한 단계. 실제 차에서는 Vehicle SDK 리스너로 [ok]를 판정해요. */

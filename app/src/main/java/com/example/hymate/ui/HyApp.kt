@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,7 +66,10 @@ private fun DrivingLock(vm: HyViewModel) {
  * 상태 표시줄 · 좌측 driving view · 하단 GNB는 시스템 UI라 앱이 그리지 않아요.
  */
 @Composable
-fun HyApp(vm: HyViewModel) {
+fun HyApp(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
+    LaunchedEffect(vm.screen) {
+        if (vm.screen == Screen.Drive) onRequestVehicleAccess()
+    }
     BackHandler(enabled = vm.canGoBack()) { vm.back() }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Box(Modifier.fillMaxSize().clip(RoundedCornerShape(32.u)).background(hy.app)) {
@@ -75,7 +79,7 @@ fun HyApp(vm: HyViewModel) {
                     Screen.Settings -> SettingsScreen(vm)
                     Screen.Pre -> PreDriveScreen(vm)
                     Screen.Guide -> GuideDetailScreen(vm)
-                    Screen.Drive -> DriveScreen(vm)
+                    Screen.Drive -> DriveScreen(vm, onRequestVehicleAccess)
                     Screen.Report -> ReportScreen(vm)
                 }
             }

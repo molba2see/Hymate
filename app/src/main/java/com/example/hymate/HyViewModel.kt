@@ -1,5 +1,6 @@
 package com.example.hymate
 
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -13,11 +14,10 @@ import com.example.hymate.data.GUIDES
 import com.example.hymate.data.Growth
 import com.example.hymate.data.PStep
 import com.example.hymate.data.Quest
-import com.example.hymate.data.RAIN_START_D
-import com.example.hymate.data.STOPS
 import com.example.hymate.data.TODAY_KEY
 import com.example.hymate.data.UserProfile
 import com.example.hymate.data.Vehicle
+import com.example.hymate.data.VehicleSignal
 import com.example.hymate.data.XP
 import com.example.hymate.data.buildQuests
 import com.example.hymate.data.fbText
@@ -26,6 +26,10 @@ import com.example.hymate.data.seedUser
 import com.example.hymate.data.tierOf
 import com.example.hymate.data.todayQuest
 import com.example.hymate.vehicle.VehicleLink
+import com.example.hymate.vehicle.LiveDriveSession
+import com.example.hymate.vehicle.LiveQuestEvaluator
+import com.example.hymate.vehicle.hasFreshSpeed
+import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -49,9 +53,8 @@ sealed interface VoiceUi {
 }
 
 /**
- * 화면 상태 + 주행 시뮬레이션.
- * 실제 차량에서는 시뮬레이션 루프 대신 CarPropertyManager(PERF_VEHICLE_SPEED), Vehicle SDK 리스너,
- * NaviHelper 이벤트가 같은 상태를 갱신하면 돼요.
+ * 화면 상태 + 실제 차량 속도에 따른 주행 기록.
+ * 지도는 예시 경로이며, 이동은 AAOS 차속으로만 진행해요.
  */
 class HyViewModel : ViewModel() {
     var screen by mutableStateOf(Screen.Home); private set
@@ -74,8 +77,12 @@ class HyViewModel : ViewModel() {
     ); private set
 
     var vehicle by mutableStateOf(Vehicle()); private set
-    /** 차량 데이터(Vehicle SDK) 연결 상태. 연결되지 않으면 버튼 시뮬레이션으로 연습해요. */
+    /** 레버·벨트 등 Pleos 차량 데이터 연결 상태. */
     var vehicleLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
+    var speedLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
+    var motionAvailable by mutableStateOf(false); private set
+    var remainingSeconds by mutableStateOf<Float?>(null); private set
+    var arrivedAtMillis by mutableStateOf(0L); private set
     var practice by mutableStateOf(mapOf<String, PracticeState>()); private set
     var selectedGuide by mutableStateOf<String?>(null); private set
 
@@ -90,7 +97,10 @@ class HyViewModel : ViewModel() {
     var quests by mutableStateOf(listOf<Quest>()); private set
     var arrivedSec by mutableFloatStateOf(0f); private set
     private var driveJob: Job? = null
-    private var pendingAnswer: Boolean? = null
+    private var feedbackJob: Job? = null
+    private var pendingAnswer: Boolean? = null // askCondition(음성 질문) 재도입용 스텁
+    private var session = LiveDriveSession()
+    private var evaluator = LiveQuestEvaluator()
 
     // 리포트
     var reportDetail by mutableStateOf<String?>(null); private set
@@ -169,18 +179,52 @@ class HyViewModel : ViewModel() {
     fun steps(k: String): List<PStep> = if (k == TODAY_KEY) todayQuest(rainy).practice else GD[k]?.practice.orEmpty()
     fun practiceState(k: String) = practice[k] ?: PracticeState()
 
-    fun onVehicleLink(link: VehicleLink) { vehicleLink = link }
+    fun onVehicleLink(link: VehicleLink) {
+        vehicleLink = link
+        if (link != VehicleLink.Connected) vehicle = vehicle.copy(knownSignals = emptySet())
+        silenceWhenMoving()
+    }
+
+    fun onSpeedLink(link: VehicleLink) {
+        speedLink = link
+        if (link != VehicleLink.Connected) {
+            vehicle = vehicle.copy(speedMps = null, speedUpdatedAtNanos = 0L)
+            motionAvailable = false
+            remainingSeconds = null
+            silenceWhenMoving()
+        }
+    }
+
+    fun onVehicleSpeed(speedMps: Float?, sampledAtNanos: Long) {
+        vehicle = vehicle.copy(speedMps = speedMps, speedUpdatedAtNanos = sampledAtNanos)
+        motionAvailable = vehicle.hasFreshSpeed(SystemClock.elapsedRealtimeNanos())
+        silenceWhenMoving()
+    }
+
+    private fun silenceWhenMoving() {
+        val holding = (VehicleSignal.GEAR in vehicle.knownSignals && vehicle.parked) ||
+            (VehicleSignal.BRAKE in vehicle.knownSignals && vehicle.brake)
+        if (!vehicle.hasFreshSpeed(SystemClock.elapsedRealtimeNanos()) ||
+            abs(vehicle.speedMps ?: 0f) > 0.5f / 3.6f || !holding
+        ) {
+            stopped = false
+            voice = null
+            feedbackJob?.cancel()
+        }
+    }
 
     /** Vehicle SDK에서 실제 레버·다이얼·벨트 값이 들어오면 연습 단계를 바로 확인해요. (메인 스레드) */
     fun onVehicleSignal(change: (Vehicle) -> Vehicle) {
         val next = change(vehicle)
         if (next == vehicle) return
         vehicle = next
+        silenceWhenMoving()
         if (!driving) checkPractice() // 실습은 주차 중에만
     }
 
     /** 차량이 연결되지 않았을 때(개발 기기)는 버튼으로 조작을 흉내 내요. */
     fun simulateStep() {
+        if (vehicleLink == VehicleLink.Connected || speedLink == VehicleLink.Connected) return
         val k = selectedGuide ?: return
         val st = practiceState(k)
         val cur = steps(k).getOrNull(st.step) ?: return
@@ -207,75 +251,59 @@ class HyViewModel : ViewModel() {
     fun startDrive(withQuest: Boolean) {
         if (screen == Screen.Drive) return
         questStarted = withQuest
-        quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond) else emptyList()
+        // 기존 시나리오에서는 지점 목록만 재사용하고, 미리 정해진 결과는 버려요.
+        quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond).map {
+            it.copy(res = 'N', ev = "아직 판정 지점에 도달하지 않았어요")
+        } else emptyList()
+        session = LiveDriveSession()
+        evaluator = LiveQuestEvaluator()
         _progress.floatValue = 0f
         stopped = false; raining = false; voice = null
+        remainingSeconds = null
         screen = Screen.Drive
         driveJob?.cancel()
+        feedbackJob?.cancel()
         driveJob = viewModelScope.launch { runDrive() }
     }
 
-    fun answer(yes: Boolean) { pendingAnswer = yes }
-
-    /** 개발용: 남은 주행을 건너뛰고 도착 처리 */
-    fun skipToArrive() {
+    /** 실제 정차 중 사용자가 기록을 끝낼 수 있어요. 목적지까지 이동한 것으로 만들지 않아요. */
+    fun finishDrive() {
+        if (screen != Screen.Drive || driving) return
         driveJob?.cancel()
-        _progress.floatValue = DEST.toFloat()
         arrive()
+    }
+
+    fun answer(yes: Boolean) {
+        // 강우·음성 API 미연동 상태에서는 자동 질문을 만들지 않아요.
     }
 
     private suspend fun runDrive() {
         val fed = mutableSetOf<String>()
-        val carry = mutableSetOf<String>() // 정차 중 동의로 뒤늦게 포함된 퀘스트 (다음 정차 피드백 후보)
-        var prevStopD = -1
-        var pendingCond = false
-        val stops = STOPS.toMutableList()
-        val metersPerSecond = 340f // 약 1분 남짓에 21.4km를 재생하는 시간 압축
-        var last = System.nanoTime()
         while (_progress.floatValue < DEST) {
-            delay(16)
-            // delay는 16ms보다 길어질 수 있어서 실제 경과 시간으로 전진해요 (기기와 무관하게 같은 속도)
-            val now = System.nanoTime()
-            val dt = ((now - last) / 1e9f).coerceIn(0f, 0.05f)
-            last = now
-            val d = _progress.floatValue
-            var nd = d + metersPerSecond * dt
-            val stop = stops.firstOrNull()
-            if (!raining && rainy && nd >= RAIN_START_D) {
-                raining = true
-                pendingCond = questStarted && consents.cond == "ask" && quests.any { it.consent }
+            delay(100)
+            session.tick(vehicle, SystemClock.elapsedRealtimeNanos())
+            motionAvailable = session.speedAvailable
+            _progress.floatValue = session.distanceMeters.coerceAtMost(DEST.toFloat())
+            remainingSeconds = session.remainingSeconds(DEST.toFloat(), vehicle)
+            stopped = session.stopped
+            if (!stopped) {
+                voice = null
+                feedbackJob?.cancel()
             }
-            if (stop != null && nd >= stop.d) {
-                nd = stop.d.toFloat()
-                _progress.floatValue = nd
-                stops.removeAt(0)
-                // ── 정차 판정: 속도 ≤0.5km/h + 브레이크 3초 (압축해서 1.2초) ──
-                stopped = true
-                delay(1200)
-                if (questStarted) {
-                    val cand = quests.filter {
-                        it.d <= nd && (it.d > prevStopD || it.id in carry) && it.res == 'F' && it.fb && !it.consent &&
-                            it.g !in fed && guide(it.g).type == GType.AUTO
-                    }.sortedWith(compareByDescending<Quest> { guide(it.g).risk }.thenByDescending { it.d })
-                    if (consents.feedback == "on" && cand.isNotEmpty()) {
-                        val q = cand.first()
-                        fed += q.g
+            if (questStarted) quests = evaluator.update(quests, vehicle, session)
+            if (stopped && questStarted && consents.feedback == "on" && feedbackJob?.isActive != true) {
+                val q = quests.filter {
+                    it.res == 'F' && it.fb && !it.consent && it.g !in fed && guide(it.g).type == GType.AUTO
+                }.maxByOrNull { guide(it.g).risk }
+                if (q != null) {
+                    fed += q.g
+                    feedbackJob = viewModelScope.launch {
                         voice = VoiceUi.Feedback(fbText(q))
                         delay(4200)
-                    }
-                    if (pendingCond) {
-                        pendingCond = false
-                        carry += askCondition()
+                        voice = null
                     }
                 }
-                voice = null
-                delay(stop.holdMs)
-                stopped = false
-                prevStopD = stop.d
-                last = System.nanoTime()
-                continue
             }
-            _progress.floatValue = nd.coerceAtMost(DEST.toFloat())
         }
         arrive()
     }
@@ -309,8 +337,10 @@ class HyViewModel : ViewModel() {
 
     private fun arrive() {
         quests = quests.filterNot { it.consent }
+        feedbackJob?.cancel()
         stopped = false; voice = null
-        arrivedSec = DEST / (28f / 3.6f)
+        arrivedSec = session.elapsedSeconds
+        arrivedAtMillis = System.currentTimeMillis()
         reportDetail = null
         screen = Screen.Report
     }
@@ -354,6 +384,10 @@ class HyViewModel : ViewModel() {
 
     fun nextDrive() {
         driveJob?.cancel()
+        feedbackJob?.cancel()
+        stopped = false
+        voice = null
+        remainingSeconds = null
         ceremony = null
         quests = emptyList()
         practice = emptyMap()
@@ -361,8 +395,6 @@ class HyViewModel : ViewModel() {
         reportDetail = null
         _progress.floatValue = 0f
         raining = false
-        // 실제 차량 값을 받는 중이면 그대로 두고, 시뮬레이션일 때만 초기화해요
-        if (vehicleLink != VehicleLink.Connected) vehicle = Vehicle(belt = vehicle.belt)
         screen = Screen.Home
     }
 

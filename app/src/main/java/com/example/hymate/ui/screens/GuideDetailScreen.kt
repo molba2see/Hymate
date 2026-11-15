@@ -235,7 +235,7 @@ private fun PracticePanel(vm: HyViewModel, k: String, modifier: Modifier) {
                     HText(cur.live(vm.vehicle), 26, weight = FontWeight.Bold, family = com.example.hymate.ui.theme.MonoFont)
                     HText("조작하면 바로 확인해요", 26, color = hy.sub)
                 }
-                Row(
+                if (vm.vehicleLink != VehicleLink.Connected && vm.speedLink != VehicleLink.Connected) Row(
                     Modifier.height(80.u)
                         .clip(RoundedCornerShape(22.u))
                         .border(3.u, hy.blue, RoundedCornerShape(22.u))
