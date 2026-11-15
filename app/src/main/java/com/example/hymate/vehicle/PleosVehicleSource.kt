@@ -20,7 +20,7 @@ import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
 import ai.pleos.playground.vehicle.listener.CruiseControlStateListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
 import ai.pleos.playground.vehicle.listener.LightStateListener
-import ai.pleos.playground.vehicle.listener.SeatBeltNotBuckledWarningListener
+import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.TurnSignalStateListener
 import ai.pleos.playground.vehicle.listener.WiperStateListener
 import com.example.hymate.data.Vehicle
@@ -41,7 +41,7 @@ sealed interface VehicleLink {
 /**
  * Pleos Connect Vehicle SDK(v2.3.2) → 앱의 [Vehicle] 상태.
  *
- * - 방향지시등 · 브레이크 페달 · 운전석 안전벨트 경고 · 기어: 콜백으로 받아요.
+ * - 방향지시등 · 브레이크 페달 · 운전석 안전벨트 체결 · 기어: 콜백으로 받아요.
  * - 전조등 · 와이퍼의 **스위치 위치**(AUTO 여부)는 SDK에 변화 콜백이 없어서,
  *   점등/작동 상태 콜백이 올 때와 1초 간격 조회로 읽어요.
  * - 차속은 별도 [CarSpeedSource]가 AAOS CarPropertyManager로 읽어요.
@@ -83,12 +83,11 @@ class PleosVehicleSource(
         }
         override fun onFailed(e: Exception) = failed("Gear", e)
     }
-    private val beltListener = object : SeatBeltNotBuckledWarningListener {
-        // 경고가 켜져 있으면 벨트를 매지 않은 상태
-        override fun onSeatBeltNotBuckledWarningUpdated(warning: Boolean?) {
-            if (warning != null) update { it.copy(belt = !warning, knownSignals = it.knownSignals + VehicleSignal.BELT) }
+    private val beltListener = object : SeatBeltBuckledStateListener {
+        override fun onSeatBeltBuckledStateUpdated(state: Boolean?) {
+            if (state != null) update { it.copy(belt = state, knownSignals = it.knownSignals + VehicleSignal.BELT) }
         }
-        override fun onFailed(e: Exception) = failed("Safety", e)
+        override fun onFailed(e: Exception) = failed("SeatBelt", e)
     }
     private val cruiseListener = object : CruiseControlStateListener {
         override fun onCruiseControlStateUpdated(state: CruiseControl?) {
@@ -99,7 +98,10 @@ class PleosVehicleSource(
 
     // 점등·작동 상태가 바뀌면 스위치 위치도 바뀌었을 수 있으니 바로 다시 읽어요
     private val lightListener = object : LightStateListener {
-        override fun onLightStateUpdated(state: LightState?) { main.post { readSwitches() } }
+        override fun onLightStateUpdated(state: LightState?) {
+            if (state != null) update { it.copy(lowBeamOn = state == LightState.ON) }
+            main.post { readSwitches() }
+        }
         override fun onFailed(e: Exception) = failed("Light", e)
     }
     private val wiperListener = object : WiperStateListener {
@@ -132,7 +134,7 @@ class PleosVehicleSource(
             vehicle = v
             v.getTurnSignal().registerTurnSignalState(turnListener)
             v.getBrake().registerBrakePedalStatus(brakeListener)
-            v.getSafety().registerSeatBeltNotBuckledWarning(driverSeat, beltListener)
+            v.getSeat().registerSeatBeltBuckledState(driverSeat, beltListener)
             v.getLight().registerLowBeamLightState(lightListener)
             v.getWiper().registerWiperState(windshield, wiperListener)
             v.getGear().registerGearSelection(gearListener)
@@ -165,10 +167,14 @@ class PleosVehicleSource(
                 { p -> brakeListener.onBrakePedalStatusUpdated(p) },
                 { e -> failed("Brake", e) },
             )
-            v.getSafety().hasSeatBeltNotBuckledWarning(
+            v.getSeat().getCurrentSeatBeltBuckledState(
                 driverSeat,
-                { w -> beltListener.onSeatBeltNotBuckledWarningUpdated(w) },
-                { e -> failed("Safety", e) },
+                { state -> beltListener.onSeatBeltBuckledStateUpdated(state) },
+                { e -> failed("SeatBelt", e) },
+            )
+            v.getLight().getCurrentLowBeamLightState(
+                { s -> lightListener.onLightStateUpdated(s) },
+                { e -> failed("Light", e) },
             )
             main.post(poll)
         } catch (t: Throwable) {
@@ -186,7 +192,7 @@ class PleosVehicleSource(
         try {
             v.getTurnSignal().unregisterTurnSignalState(turnListener)
             v.getBrake().unregisterBrakePedalStatus(brakeListener)
-            v.getSafety().unregisterSeatBeltNotBuckledWarning(driverSeat, beltListener)
+            v.getSeat().unregisterSeatBeltBuckledState(driverSeat, beltListener)
             v.getLight().unregisterLowBeamLightState(lightListener)
             v.getWiper().unregisterWiperState(windshield, wiperListener)
             v.getGear().unregisterGearSelection(gearListener)
@@ -235,13 +241,16 @@ class PleosVehicleSource(
                 "TurnSignal" -> VehicleSignal.TURN
                 "Brake" -> VehicleSignal.BRAKE
                 "Gear" -> VehicleSignal.GEAR
-                "Safety" -> VehicleSignal.BELT
+                "SeatBelt" -> VehicleSignal.BELT
                 "Light" -> VehicleSignal.HEADLIGHT
                 "Wiper" -> VehicleSignal.WIPER
                 "DrivingMode" -> VehicleSignal.CRUISE
                 else -> null
             }
-            onSignal { it.copy(knownSignals = if (signal == null) it.knownSignals else it.knownSignals - signal) }
+            onSignal { it.copy(
+                knownSignals = if (signal == null) it.knownSignals else it.knownSignals - signal,
+                lowBeamOn = if (what == "Light") null else it.lowBeamOn,
+            ) }
             if (!connected) onLink(VehicleLink.Unavailable(e.message ?: e.javaClass.simpleName))
         }
     }

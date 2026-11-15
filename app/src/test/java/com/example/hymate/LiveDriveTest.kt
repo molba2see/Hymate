@@ -28,6 +28,43 @@ class LiveDriveTest {
     private fun quest(g: String, d: Int = 0, dir: String? = null) =
         Quest("q", g, "예시 지점", "예시", d, 'N', "미판정", dir = dir)
 
+    @Test fun demoIgnoresRetainedGpsAndStartsAtZero() {
+        val demo = LiveDriveSession(allowLocationSnap = false)
+        demo.syncDistance(5600f) // 이전 에뮬레이터 GPS가 경로 중간이어도 출발점을 유지해요.
+        assertEquals(0f, demo.distanceMeters, 0f)
+        demo.tick(vehicle(0f), now)
+        now += 100_000_000L
+        demo.tick(vehicle(0f), now)
+        assertEquals(0f, demo.distanceMeters, 0f)
+        demo.syncDistance(12000f)
+        assertEquals(0f, demo.distanceMeters, 0f)
+    }
+
+    @Test fun demoMovesFromOriginWithVehicleSpeedAndResetsForNextTrip() {
+        val demo = LiveDriveSession(allowLocationSnap = false)
+        demo.tick(vehicle(), now)
+        repeat(10) {
+            now += 100_000_000L
+            demo.tick(vehicle(), now)
+            demo.syncDistance(5600f)
+        }
+        assertEquals(10f, demo.distanceMeters, .01f)
+        val next = LiveDriveSession(allowLocationSnap = false)
+        next.syncDistance(5600f)
+        assertEquals(0f, next.distanceMeters, 0f)
+    }
+
+    @Test fun realGpsCorrectsLargeBackwardErrorButIgnoresSmallJitter() {
+        session.syncDistance(5600f)
+        session.syncDistance(5580f)
+        assertEquals(5600f, session.distanceMeters, 0f)
+        session.syncDistance(0f)
+        assertEquals(0f, session.distanceMeters, 0f)
+        session.syncDistance(Float.NaN)
+        session.syncDistance(-1f)
+        assertEquals(0f, session.distanceMeters, 0f)
+    }
+
     @Test fun noSpeedNeverMovesOrPretendsToStop() {
         session.tick(vehicle(null), now)
         tick(vehicle(null), 100)

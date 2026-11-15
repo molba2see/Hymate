@@ -2,7 +2,6 @@ package com.example.hymate.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import com.example.hymate.ui.components.RoadMap
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -94,7 +95,8 @@ fun ReportScreen(vm: HyViewModel) {
     val okN = auto.count { it.res == 'S' }
     val xN = auto.count { it.res == 'F' && !it.disputed }
     val exN = auto.count { it.res == 'F' && it.disputed } // 이의 반영 → 판정 제외 (성장 계산과 같은 기준)
-    val recN = qs.count { it.res == 'R' }
+    val recN = qs.count { it.res == 'R' && !it.selfCheck }
+    val selfN = qs.count { it.selfAnswer != null || (it.selfCheck && it.notApplicable) }
     val expN = qs.count { it.res == 'E' }
     val holdN = qs.count { it.res == 'H' } // 운전자 확인 전에는 성공·놓침으로 확정하지 않아요
     ScreenFrame {
@@ -104,10 +106,11 @@ fun ReportScreen(vm: HyViewModel) {
                     ArcadeTag("04 / DRIVE REPORT", Modifier.padding(bottom = 6.u))
                     Eyebrow("주행 리포트 · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(vm.arrivedAtMillis))} 종료 · ${"%.2f".format(Locale.US, vm.progress / 1000f)}km", hy.blue)
                     H1("오늘 출근길, 이렇게 달렸어요", 50)
-                    Row(Modifier.padding(top = 14.u), horizontalArrangement = Arrangement.spacedBy(14.u)) {
+                    FlowRow(Modifier.padding(top = 14.u), horizontalArrangement = Arrangement.spacedBy(14.u), verticalArrangement = Arrangement.spacedBy(8.u)) {
                         HChip("지킴 $okN", height = 60, textSize = 28, leading = { OxMark('S') })
                         HChip("놓침 $xN", height = 60, textSize = 28, leading = { OxMark('F') })
                         if (recN > 0) HChip("기록 $recN", height = 60, textSize = 28, leading = { OxMark('R') })
+                        if (selfN > 0) HChip("자가 체크 $selfN", height = 60, textSize = 28, leading = { OxMark('R') })
                         if (expN > 0) HChip("경험 $expN", height = 60, textSize = 28, leading = { OxMark('E') })
                         if (holdN > 0) HChip("확인 필요 $holdN", height = 60, textSize = 28, color = hy.amber, leading = { OxMark('H') })
                         if (exN > 0) HChip("제외 $exN", height = 60, textSize = 28, color = hy.sub, leading = { OxMark('X') })
@@ -118,13 +121,13 @@ fun ReportScreen(vm: HyViewModel) {
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(40.u)) {
                 // 지도
                 Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(32.u)).background(hy.s1)) {
-                    ReportMap(qs, vm.reportDetail, Modifier.fillMaxSize())
+                    RoadMap({ vm.reportDetail?.let { k -> qs.firstOrNull { it.g == k && it.coordinate != null }?.coordinate } ?: vm.mapPosition }, vm.roadRoute, Modifier.fillMaxSize())
                     Box(
                         Modifier.padding(start = 24.u, top = 22.u).clip(RoundedCornerShape(16.u)).background(mix(hy.s1, 0.92f, Color.Transparent))
                             .padding(horizontal = 18.u, vertical = 10.u),
                     ) {
                         HText(
-                            vm.reportDetail?.let { "${guide(it).short} · 지점 확대" } ?: "예시 경로 · 실측 ${"%.2f".format(Locale.US, vm.progress / 1000f)}km · ${(vm.arrivedSec / 60).toInt()}분",
+                            vm.reportDetail?.let { "${guide(it).short} · 기록된 지점 또는 최종 위치" } ?: "최종 안내 경로 · 실측 ${"%.2f".format(Locale.US, vm.progress / 1000f)}km · ${(vm.arrivedSec / 60).toInt()}분",
                             28, weight = FontWeight.Bold,
                         )
                     }
@@ -153,66 +156,66 @@ fun ReportScreen(vm: HyViewModel) {
     }
 }
 
+// 생성 여부는 내부 기록에 유지하고, 발표 화면에는 결과만 표시해요.
+private fun resultText(q: Quest, generated: Boolean): String = if (!generated) q.ev else when (q.res) {
+    'S' -> "가이드를 지켰어요"
+    'F' -> "다음 주행에서 다시 챙겨요"
+    'R' -> "주행 기록을 남겼어요"
+    'E' -> "사용 경험을 기록했어요"
+    else -> "이번 주행에서는 수행하지 않았어요"
+}
+
 @Composable
 private fun ColumnScope.SummaryPanel(vm: HyViewModel, auto: List<Quest>) {
-    val rank = auto.groupBy { it.g }
-        .map { (k, list) -> Triple(k, list, list.count { it.res == 'F' && !it.disputed }) }
-        .filter { it.third > 0 }
-        .sortedWith(compareByDescending<Triple<String, List<Quest>, Int>> { it.third }.thenByDescending { guide(it.first).risk })
-    // 자가 체크·경험 자기보고: 차가 확인하지 못한 항목은 운전자에게 물어요
-    vm.quests.filter { it.res == 'H' }.map { it.g }.distinct().forEach { k ->
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.u)).background(mix(hy.amber, 0.14f, hy.s1)).clickable { vm.openDetail(k) }
-                .padding(horizontal = 24.u, vertical = 18.u),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.u),
-        ) {
-            OxMark('H')
-            Column(Modifier.weight(1f)) {
-                HText(guide(k).title, 30, weight = FontWeight.Bold, maxLines = 1)
-                HText("차가 확인하지 못했어요 · 직접 알려주세요", 24, color = hy.sub, maxLines = 1)
+    val groups = vm.quests.groupBy { it.g }.entries.sortedWith(
+        compareByDescending<Map.Entry<String, List<Quest>>> { it.value.any { q -> q.res == 'H' } }
+            .thenByDescending { it.value.any { q -> q.res == 'F' && !q.disputed } }
+            .thenBy { guide(it.key).lv },
+    )
+    HText("전체 퀘스트 ${groups.size}개", 34, weight = FontWeight.Bold)
+    HText(
+        if (vm.demoReport) "전체 ${vm.quests.size}건 · 각 항목을 눌러 결과를 확인해요"
+        else "자동 판정 ${auto.size}건 · 각 항목을 눌러 근거와 직접 체크를 확인해요",
+        24, color = hy.sub,
+    )
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.u)) {
+        items(groups, key = { it.key }) { (key, list) ->
+            val pending = list.count { it.res == 'H' }
+            val missed = list.count { it.res == 'F' && !it.disputed }
+            val kept = list.count { it.res == 'S' }
+            val selfDone = list.count { it.selfAnswer != null || (it.selfCheck && it.notApplicable) }
+            val symbol = when {
+                pending > 0 -> 'H'
+                missed > 0 -> 'F'
+                kept > 0 -> 'S'
+                list.any { it.res == 'E' } -> 'E'
+                selfDone > 0 || list.any { it.res == 'R' } -> 'R'
+                else -> 'N'
             }
-            HText("답하기", 26, color = hy.amber, weight = FontWeight.Bold)
-            HIcon(HyIcons.ChevR, 32, hy.amber)
-        }
-    }
-    Row(verticalAlignment = Alignment.Bottom) {
-        HText("가장 많이 놓친 퀘스트 TOP 3", 32, Modifier.weight(1f), weight = FontWeight.Bold)
-        HText("상세 보기에서 놓친 지점을 확인해요", 24, color = hy.sub, weight = FontWeight.Medium)
-    }
-    if (rank.isEmpty()) {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.u)).background(mix(hy.ok, 0.14f, hy.s1)).padding(30.u),
-            horizontalArrangement = Arrangement.spacedBy(18.u), verticalAlignment = Alignment.CenterVertically,
-        ) { HIcon(HyIcons.Check, 44, hy.ok); HText("오늘은 놓친 퀘스트가 없어요", 32, color = hy.ok, weight = FontWeight.Bold) }
-    }
-    rank.take(3).forEachIndexed { i, (k, list, f) ->
-        val g = guide(k)
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.u)).background(hy.s1).clickable { vm.openDetail(k) }
-                .padding(horizontal = 24.u, vertical = 20.u),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(22.u),
-        ) {
-            Box(Modifier.size(64.u).clip(RoundedCornerShape(20.u)).background(mix(hy.bad, 0.2f, hy.s2)), contentAlignment = Alignment.Center) {
-                HText("${i + 1}", 30, color = hy.bad, weight = FontWeight.Black, family = DisplayFont)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.u)) {
-                HText(g.title, 32, weight = FontWeight.Bold, maxLines = 1)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.u), verticalAlignment = Alignment.CenterVertically) {
-                    list.sortedBy { it.d }.forEach { OxMark(if (it.disputed) 'X' else it.res) }
-                    HText("${list.size}곳 중 ${f}곳 놓침 · ${g.lvLabel}", 24, color = hy.sub, maxLines = 1)
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(24.u)).background(hy.s1)
+                    .clickable { vm.openDetail(key) }.padding(horizontal = 24.u, vertical = 20.u),
+                horizontalArrangement = Arrangement.spacedBy(18.u),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OxMark(symbol)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.u)) {
+                    HText(guide(key).title, 30, weight = FontWeight.Bold, maxLines = 1)
+                    HText(
+                        when {
+                            vm.demoReport -> resultText(list.first(), true)
+                            pending > 0 -> "직접 체크 ${pending}건 대기 · 자동 지킴 $kept · 놓침 $missed"
+                            kept + missed > 0 -> "자동 지킴 $kept · 놓침 $missed · 자가 체크 $selfDone"
+                            selfDone > 0 -> "자가 체크 ${selfDone}건 완료 · 자동 판정과 구분해 기록했어요"
+                            else -> list.first().ev
+                        }, 23, color = hy.sub, maxLines = 2,
+                    )
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HText("상세 보기", 26, color = hy.blue, weight = FontWeight.Bold)
-                HIcon(HyIcons.ChevR, 32, hy.blue)
+                HIcon(HyIcons.ChevR, 32, if (pending > 0) hy.amber else hy.blue)
             }
         }
+        item { GrowBox(vm) }
     }
-    if (rank.size > 3) HText("그 밖에 ${rank.size - 3}개 퀘스트에서 놓친 곳이 있어요.", 24, color = hy.sub)
-    VSpacer1()
-    GrowBox(vm)
 }
 
 @Composable
@@ -286,7 +289,7 @@ private fun ColumnScope.DetailPanel(vm: HyViewModel, k: String) {
                 OxMark(if (q.disputed) 'X' else q.res)
                 if (q.res == 'H') {
                     // 보류: 운전자 응답으로 확정 (자기보고라는 사실은 근거에 남겨요)
-                    val (yes, no) = holdLabels(q.g)
+                    val (yes, no) = if (q.selfCheck && g.type == GType.AUTO) "지켰어요" to "못 지켰어요" else holdLabels(q.g)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.u)) {
                         HText(q.place, 30, weight = FontWeight.Bold, maxLines = 1)
                         HText(q.ev, 22, color = hy.sub, family = MonoFont, maxLines = 2)
@@ -298,12 +301,13 @@ private fun ColumnScope.DetailPanel(vm: HyViewModel, k: String) {
                                     contentAlignment = Alignment.Center,
                                 ) { HText(label, 24, weight = FontWeight.SemiBold) }
                             }
+                            if (q.selfCheck) HButton("해당 없음", { vm.skipHold(q.id) }, height = 76, textSize = 24, hPad = 16)
                         }
                     }
                 }
                 if (q.res != 'H') Column(Modifier.weight(1f)) {
-                    HText(q.place, 30, weight = FontWeight.Bold, maxLines = 1)
-                    HText(q.ev, 22, color = if (x && !q.disputed) hy.bad else hy.sub, family = MonoFont, maxLines = 1)
+                    HText(if (vm.demoReport) g.short else q.place, 30, weight = FontWeight.Bold, maxLines = 1)
+                    HText(resultText(q, vm.demoReport), 22, color = if (x && !q.disputed) hy.bad else hy.sub, family = MonoFont, maxLines = 1)
                 }
                 if (x) {
                     val on = q.disputed
@@ -321,96 +325,6 @@ private fun ColumnScope.DetailPanel(vm: HyViewModel, k: String) {
         HCard(Modifier.fillMaxWidth(), color = mix(hy.blue, 0.12f, hy.s1), radius = 24, padding = PaddingValues(horizontal = 24.u, vertical = 18.u)) {
             HText("다음엔 이렇게", 22, color = hy.blue, weight = FontWeight.Bold)
             HText(it.how[1], 28, Modifier.padding(top = 4.u), lineHeight = 1.45f)
-        }
-    }
-}
-
-private class Seg(val a: Offset, val b: Offset, val w: Float)
-
-/** 오늘 달린 경로 · 퀘스트 지점 지도 (detail이 있으면 해당 지점들로 확대) */
-@Composable
-private fun ReportMap(quests: List<Quest>, focus: String?, modifier: Modifier) {
-    val c = hy
-    val tm = rememberTextMeasurer()
-    val streets = remember {
-        val r = Random(11)
-        List(260) {
-            val x = -260f + r.nextFloat() * 880f
-            val y = -140f + r.nextFloat() * 720f
-            val ang = listOf(0, 90, 28, 118, 62, 152)[r.nextInt(6)] * Math.PI.toFloat() / 180f + (r.nextFloat() - .5f) * .2f
-            val l = 15f + r.nextFloat() * 80f
-            Seg(Offset(x - kotlin.math.cos(ang) * l, y - kotlin.math.sin(ang) * l), Offset(x + kotlin.math.cos(ang) * l, y + kotlin.math.sin(ang) * l), if (r.nextFloat() < .25f) 5f else 2.5f)
-        }
-    }
-    val marks = quests.filter { it.g == focus && it.res in "SFRHEN" }.sortedBy { it.d }
-    // 뷰박스 (경로 좌표계)
-    val pts = if (marks.isNotEmpty()) marks.map { posAt(it.d.toFloat()) } else ROUTE_POINTS
-    val pad = if (marks.isNotEmpty()) 30f else 40f
-    val x0 = pts.minOf { it.x } - pad
-    val x1 = pts.maxOf { it.x } + pad
-    val y0 = pts.minOf { it.y } - pad - if (marks.isEmpty()) 70f else 0f
-    val y1 = pts.maxOf { it.y } + pad + if (marks.isEmpty()) 60f else 0f
-    val cx by animateFloatAsState((x0 + x1) / 2, tween(650), label = "cx")
-    val cy by animateFloatAsState((y0 + y1) / 2, tween(650), label = "cy")
-    val vw by animateFloatAsState((x1 - x0).coerceAtLeast(if (marks.isNotEmpty()) 150f else 0f), tween(650), label = "vw")
-    val vh by animateFloatAsState((y1 - y0).coerceAtLeast(if (marks.isNotEmpty()) 100f else 0f), tween(650), label = "vh")
-
-    Canvas(modifier) {
-        drawRect(c.mapBg)
-        val k = minOf(size.width / vw, size.height / vh)
-        val px = size.width / 1260f // 화면 px 단위 (디자인 기준)
-        withTransform({
-            translate(size.width / 2, size.height / 2)
-            scale(k, k, Offset.Zero)
-            translate(-cx, -cy)
-        }) {
-            // 한강
-            val river = Path().apply {
-                moveTo(-400f, 236f); cubicTo(60f, 226f, 120f, 268f, 200f, 252f); cubicTo(280f, 236f, 320f, 236f, 800f, 262f)
-                lineTo(800f, 284f); cubicTo(320f, 258f, 260f, 276f, 200f, 274f); cubicTo(140f, 272f, 60f, 252f, -400f, 258f); close()
-            }
-            drawPath(river, c.mapRiver)
-            streets.forEach { drawLine(c.mapStreet, it.a, it.b, it.w * px / k, cap = StrokeCap.Round) }
-            val path = Path().apply { ROUTE_POINTS.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
-            drawPath(path, c.mapCase, style = Stroke(22f * px / k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawPath(path, c.blue.copy(alpha = if (focus != null) .6f else 1f), style = Stroke(11f * px / k, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
-        fun screen(o: Offset) = Offset(size.width / 2 + (o.x - cx) * k, size.height / 2 + (o.y - cy) * k)
-        fun label(t: String, at: Offset, sz: Float, col: Color, bold: Boolean = true, anchorEnd: Boolean = false, bg: Color? = null) {
-            val r = tm.measure(t, TextStyle(fontSize = (sz * px / density / fontScale).sp, color = col, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.SemiBold))
-            val tl = Offset(if (anchorEnd) at.x - r.size.width else at.x, at.y - r.size.height / 2f)
-            if (bg != null) drawRoundRect(bg, tl - Offset(12 * px, 4 * px), androidx.compose.ui.geometry.Size(r.size.width + 24 * px, r.size.height + 8 * px), androidx.compose.ui.geometry.CornerRadius(14 * px))
-            drawText(r, topLeft = tl)
-        }
-        // 도로 이름
-        if (focus == null) {
-            listOf("정릉로" to 1300f, "내부순환로" to 6200f, "동부간선도로" to 10000f, "영동대로" to 14600f, "양재대로" to 19300f).forEach { (t, d) ->
-                label(t, screen(posAt(d)) + Offset(18 * px, 0f), 22f, c.mapLabel, bold = false)
-            }
-        }
-        // 출발 · 도착
-        val s = screen(posAt(0f))
-        val e = screen(posAt(DEST.toFloat()))
-        drawCircle(c.ok, 16 * px, s); drawCircle(Color.White, 16 * px, s, style = Stroke(5 * px))
-        drawCircle(c.bad, 16 * px, e); drawCircle(Color.White, 16 * px, e, style = Stroke(5 * px))
-        if (focus == null) {
-            label("출발 · 국민대학교", s + Offset(28 * px, 0f), 28f, c.fg)
-            label("도착 · 현대자동차 양재 본사", e - Offset(28 * px, 0f), 28f, c.fg, anchorEnd = true)
-        }
-        // 퀘스트 지점
-        marks.forEachIndexed { i, q ->
-            val p = screen(posAt(q.d.toFloat()))
-            val res = if (q.disputed || q.res == 'N') 'X' else q.res
-            val col = when (res) { 'F' -> c.bad; 'S' -> c.ok; 'R' -> c.blue; 'E' -> c.gleo; 'X' -> c.sub; else -> c.amber }
-            if (res == 'S' || res == 'X') {
-                drawCircle(c.s1, 22 * px, p); drawCircle(col, 22 * px, p, style = Stroke(8 * px))
-            } else {
-                drawCircle(col, 30 * px, p); drawCircle(Color.White, 30 * px, p, style = Stroke(4 * px))
-                val r = tm.measure(when (res) { 'F' -> "✕"; 'R' -> "기"; 'E' -> "경"; else -> "?" }, TextStyle(fontSize = (30 * px / density / fontScale).sp, color = Color.White, fontWeight = FontWeight.Black, textAlign = TextAlign.Center))
-                drawText(r, topLeft = p - Offset(r.size.width / 2f, r.size.height / 2f))
-            }
-            val left = i % 2 == 1
-            label(q.short, p + Offset(if (left) -54 * px else 54 * px, 0f), 28f, if (res == 'F') c.bad else c.fg, anchorEnd = left, bg = c.s1.copy(alpha = .92f))
         }
     }
 }

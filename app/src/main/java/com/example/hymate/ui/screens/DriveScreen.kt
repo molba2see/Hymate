@@ -41,16 +41,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.font.FontWeight
 import com.example.hymate.HyViewModel
 import com.example.hymate.VoiceUi
-import com.example.hymate.data.DEST
-import com.example.hymate.data.ROUTE_POINTS
-import com.example.hymate.data.nextManeuver
-import com.example.hymate.data.posAt
+import com.example.hymate.ui.components.RoadMap
 import com.example.hymate.ui.components.GleoOrb
 import com.example.hymate.ui.components.HButton
 import com.example.hymate.ui.components.HIcon
@@ -66,41 +60,26 @@ import java.util.Date
 import java.text.DateFormat
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.random.Random
 
-/**
- * 주행 · 정차 화면.
- * 주행 중 Hy! mate는 화면을 쓰지 않아요(OEM 내비가 전체). 여기 지도는 OEM 내비를 흉내 낸 목업이고,
- * Hy! mate가 실제로 그리는 건 하단 우측 상태 알약과 정차 중 상단 우측 음성 배너뿐이에요.
- * 배너는 실차에서는 AAOS heads-up 알림으로 띄우는 것을 기본안으로 둬요.
- */
+/** 실제 도로 지도 + Hy! mate 상태·음성 배너. 데모 이동은 차량 차속을 사용해요. */
 @Composable
 fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
-    // progress는 매 프레임 바뀌어요. 화면 전체가 아니라 표시 값이 달라질 때만 리컴포즈되도록 파생 상태로 읽어요.
-    val nmState by remember { derivedStateOf { nextManeuver(vm.progress) } }
-    val distText by remember {
-        derivedStateOf {
-            val p = vm.progress
-            val r = (nextManeuver(p)?.d ?: DEST) - p
-            if (r < 1000) "${(r / 10).toInt() * 10}m" else "%.1fkm".format(Locale.US, r / 1000)
-        }
-    }
-    val remKmText by remember { derivedStateOf { "%.1fkm".format(Locale.US, (DEST - vm.progress) / 1000f) } }
+    val nmState by remember { derivedStateOf {
+        if (vm.navigationReady) vm.roadRoute?.nextManeuver(vm.navigationProgress) else null
+    } }
+    val distText by remember { derivedStateOf {
+        val remaining = ((nmState?.atMeters ?: vm.navigationProgress) - vm.navigationProgress).coerceAtLeast(0f)
+        if (remaining < 1000) "${(remaining / 10).toInt() * 10}m" else "%.1fkm".format(Locale.US, remaining / 1000)
+    } }
+    val remKmText by remember { derivedStateOf {
+        vm.navigationRemainingMeters?.let { "%.1fkm".format(Locale.US, it / 1000f) } ?: "대기 중"
+    } }
     val remMin by remember { derivedStateOf { vm.remainingSeconds?.let { kotlin.math.ceil(it / 60f).toInt() } } }
     val arrivalText by remember { derivedStateOf {
-        vm.remainingSeconds?.let {
-            DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(System.currentTimeMillis() + (it * 1000).toLong()))
-        } ?: "대기 중"
-    } }
-    val speedText by remember { derivedStateOf {
-        if (vm.motionAvailable) "${(abs(vm.vehicle.speedMps ?: 0f) * 3.6f).roundToInt()}km/h" else "차속 미수신"
+        vm.arrivalPredictionMillis?.let { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it)) } ?: "대기 중"
     } }
     Box(Modifier.fillMaxSize().background(MapBg)) {
-        NavMap({ vm.progress }, Modifier.fillMaxSize())
+        RoadMap({ vm.mapPosition }, vm.roadRoute, Modifier.fillMaxSize())
         if (vm.raining) RainOverlay()
 
         // TBT
@@ -115,20 +94,21 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
                 horizontalArrangement = Arrangement.spacedBy(26.u),
             ) {
                 val ic = when {
-                    nm.kind == "dest" -> HyIcons.Flag
-                    nm.kind == "merge" -> HyIcons.Merge
-                    nm.dir == "L" -> HyIcons.TurnL
-                    else -> HyIcons.TurnR
+                    nm.type == "arrive" -> HyIcons.Flag
+                    nm.type == "merge" -> HyIcons.Merge
+                    nm.modifier.contains("left") || nm.modifier == "uturn" -> HyIcons.TurnL
+                    nm.modifier.contains("right") -> HyIcons.TurnR
+                    else -> HyIcons.Straight
                 }
                 HIcon(ic, 112, Color.White)
                 Column {
                     HText(distText, 84, color = Color.White, weight = FontWeight.ExtraBold, lineHeight = 1f)
-                    HText(nm.road.ifEmpty { nm.name }, 34, Modifier.padding(top = 8.u), color = Color.White.copy(alpha = 0.92f), maxLines = 1)
+                    HText("${nm.instruction} · ${nm.name.ifEmpty { "경로 안내" }}", 34, Modifier.padding(top = 8.u), color = Color.White.copy(alpha = 0.92f), maxLines = 1)
                 }
             }
         }
-        // ETA
-        Row(
+        // 도로 구간별 프로파일 시간으로 계산해요. 경로 이탈·재탐색·GPS 유실 시 숨겨요.
+        if (vm.navigationReady) Row(
             Modifier.align(Alignment.BottomStart).padding(32.u)
                 .shadow(12.u, RoundedCornerShape(32.u))
                 .clip(RoundedCornerShape(32.u)).background(MapCard)
@@ -145,7 +125,8 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
             Modifier.align(Alignment.BottomEnd).padding(32.u).height(96.u)
                 .shadow(12.u, RoundedCornerShape(50))
                 .clip(RoundedCornerShape(50)).background(MapCard)
-                .then(if (!vm.motionAvailable) Modifier.clickable(onClick = onRequestVehicleAccess) else Modifier)
+                .then(if (!vm.motionAvailable || (!vm.driveUsesDemo && vm.locationLink != com.example.hymate.vehicle.VehicleLink.Connected))
+                    Modifier.clickable(onClick = onRequestVehicleAccess) else Modifier)
                 .padding(start = 16.u, end = 32.u),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.u),
@@ -154,6 +135,7 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
             HText(
                 when {
                     !vm.motionAvailable -> "차속 연결 대기 · 눌러서 확인"
+                    !vm.driveUsesDemo && vm.locationLink != com.example.hymate.vehicle.VehicleLink.Connected -> "위치 연결 대기 · 눌러서 확인"
                     !vm.questStarted -> "기록 안 함"
                     abs(vm.vehicle.speedMps ?: 0f) <= 0.5f / 3.6f && !vm.stopped -> "차량 정지 · 출발 대기"
                     vm.stopped -> "정차 · 짧게 말할 수 있어요"
@@ -161,6 +143,37 @@ fun DriveScreen(vm: HyViewModel, onRequestVehicleAccess: () -> Unit = {}) {
                 },
                 28, color = MapSub,
             )
+        }
+
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(32.u).widthIn(max = 900.u),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.u),
+        ) {
+            HText(
+                vm.navigationStatus, 26,
+                Modifier.clip(RoundedCornerShape(16.u)).background(MapCard)
+                    .padding(horizontal = 20.u, vertical = 12.u),
+                color = MapFg,
+            )
+            HText(
+                vm.seatBeltStatus, 26,
+                Modifier.clip(RoundedCornerShape(16.u)).background(MapCard)
+                    .padding(horizontal = 20.u, vertical = 12.u),
+                color = if (com.example.hymate.data.VehicleSignal.BELT in vm.vehicle.knownSignals &&
+                    !vm.vehicle.belt) Color(0xFFB3261E) else MapSub,
+            )
+            if (vm.demoResultsAvailable) {
+                if (!vm.driving) HButton(
+                    "데모 · 80% 성공 리포트", vm::finishDemoDrive,
+                    height = 88, textSize = 30, hPad = 24,
+                    container = Color(0xFF006BFF), content = Color.White,
+                ) else HText(
+                    "데모 리포트 · P에서 실행", 24,
+                    Modifier.clip(RoundedCornerShape(16.u)).background(MapCard).padding(16.u),
+                    color = MapSub,
+                )
+            }
         }
 
         // 음성 배너 (정차 중에만)
@@ -250,79 +263,11 @@ private fun AnswerButton(text: String, onClick: () -> Unit) {
 
 /** 주간(밝은) 목업 지도 색 — 테마와 독립이라 리포트 지도는 그대로 둬요. */
 private val MapBg = Color(0xFFEAEEF3)
-private val MapStreet = Color(0xFFFFFFFF)
-private val MapCase = Color(0xFFCDD4DE)
-private val MapDone = Color(0xFF98A2B0)
 
 // 지도 위 카드·알약은 앱 다크 테마와 무관하게 주간 지도에 맞는 밝은 색을 써요.
 private val MapCard = Color(0xF2FFFFFF)
 private val MapFg = Color(0xFF1B2129)
 private val MapSub = Color(0xFF66707C)
-
-private class Street(val a: Offset, val b: Offset, val w: Float)
-
-/** OEM 내비게이션 목업 지도: 차량 기준으로 경로를 이동·회전 */
-@Composable
-private fun NavMap(progress: () -> Float, modifier: Modifier) {
-    val c = hy
-    // 경로 Path는 한 번만 만들고, 지나온 구간 Path는 재사용해요 (프레임마다 할당하지 않기)
-    val routePath = remember {
-        Path().apply { ROUTE_POINTS.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
-    }
-    val donePath = remember { Path() }
-    val streets = remember {
-        val r = Random(11)
-        List(260) {
-            val x = -260f + r.nextFloat() * 880f
-            val y = -140f + r.nextFloat() * 720f
-            val ang = listOf(0, 90, 28, 118, 62, 152)[r.nextInt(6)] * PI.toFloat() / 180f + (r.nextFloat() - .5f) * .2f
-            val l = 15f + r.nextFloat() * 80f
-            Street(Offset(x - cos(ang) * l, y - sin(ang) * l), Offset(x + cos(ang) * l, y + sin(ang) * l), if (r.nextFloat() < .25f) 5f else 2.5f)
-        }
-    }
-    Canvas(modifier) {
-        val d = progress()
-        val s = size.width / 1700f
-        val nk = 6f
-        val car = Offset(size.width * 850f / 1700f, size.height * 0.68f)
-        val p = posAt(d)
-        val a = posAt((d + 30).coerceAtMost(DEST.toFloat()))
-        val b = posAt((d - 10).coerceAtLeast(0f))
-        val heading = atan2(a.y - b.y, a.x - b.x) * 180f / PI.toFloat() + 90f
-        withTransform({
-            translate(car.x, car.y)
-            rotate(-heading, Offset.Zero)
-            scale(nk * s, nk * s, Offset.Zero)
-            translate(-p.x, -p.y)
-        }) {
-            streets.forEach { drawLine(MapStreet, it.a, it.b, it.w * 3f / nk, cap = StrokeCap.Round) }
-            val path = routePath
-            drawPath(path, MapCase, style = Stroke(26f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawPath(path, c.blue, style = Stroke(16f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            donePath.rewind()
-            donePath.moveTo(ROUTE_POINTS.first().x, ROUTE_POINTS.first().y)
-            var i = 0
-            while (i < ROUTE_POINTS.size && i * 60 <= d) {
-                donePath.lineTo(ROUTE_POINTS[i].x, ROUTE_POINTS[i].y)
-                i++
-            }
-            donePath.lineTo(p.x, p.y)
-            drawPath(donePath, MapDone, style = Stroke(16f / nk, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            val end = posAt(DEST.toFloat())
-            drawCircle(c.bad, 4f, end)
-            drawCircle(Color.White, 4f, end, style = Stroke(1.2f))
-        }
-        // 차량 아이콘 (항상 위쪽을 향함)
-        translate(car.x, car.y) {
-            drawCircle(c.blue.copy(alpha = .16f), 72f * s)
-            val arrow = Path().apply {
-                moveTo(0f, -44f * s); lineTo(31f * s, 34f * s); lineTo(0f, 18f * s); lineTo(-31f * s, 34f * s); close()
-            }
-            drawPath(arrow, c.blue)
-            drawPath(arrow, Color.White, style = Stroke(6f * s, join = StrokeJoin.Round))
-        }
-    }
-}
 
 @Composable
 private fun BoxScope.RainOverlay() {

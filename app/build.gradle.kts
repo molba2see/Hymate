@@ -17,6 +17,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        // 개발용 공개 OSRM. 배포 시 -ProutingBaseUrl=https://your-osrm.example 로 교체해요.
+        val routingBaseUrl = providers.gradleProperty("routingBaseUrl").orElse("https://router.project-osrm.org").get()
+        require(routingBaseUrl.startsWith("https://") && !routingBaseUrl.contains('"'))
+        buildConfigField("String", "ROUTING_BASE_URL", "\"$routingBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -35,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     // AAOS에서 제공하는 라이브러리. 일반 개발 기기에도 설치할 수 있어요.
     useLibrary("android.car", false)
@@ -60,6 +65,11 @@ dependencies {
     implementation(libs.pleos.tts)
     implementation(libs.pleos.stt)
     implementation(libs.pleos.location)
+
+    // 실제 도로 지도 (OpenStreetMap). 위치는 Pleos 또는 차량 차속 기반 데모에서 전달해요.
+    implementation(libs.maplibre)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

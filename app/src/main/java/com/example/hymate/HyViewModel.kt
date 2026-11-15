@@ -8,6 +8,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.hymate.data.DEST
+import com.example.hymate.data.GeoPoint
+import com.example.hymate.navigation.NAV_ORIGIN
+import com.example.hymate.navigation.NAV_DESTINATION
+import com.example.hymate.navigation.RoadRoute
+import com.example.hymate.navigation.RouteTracker
+import com.example.hymate.navigation.OsrmRoutingClient
+import kotlinx.coroutines.CancellationException
 import com.example.hymate.data.GD
 import com.example.hymate.data.GType
 import com.example.hymate.data.GUIDES
@@ -28,6 +35,8 @@ import com.example.hymate.data.todayQuest
 import com.example.hymate.vehicle.VehicleLink
 import com.example.hymate.vehicle.LiveDriveSession
 import com.example.hymate.vehicle.LiveQuestEvaluator
+import com.example.hymate.vehicle.LiveQuestPlan
+import com.example.hymate.vehicle.QuestRouteState
 import com.example.hymate.vehicle.hasFreshSpeed
 import kotlin.math.abs
 import com.example.hymate.speech.SpeechEngine
@@ -43,7 +52,8 @@ import kotlinx.coroutines.launch
 enum class Screen { Home, Settings, Pre, Guide, Drive, Report }
 
 /** 홈 화면에 보여줄 직전 주행 요약 */
-data class DriveLog(val ok: Int, val miss: Int, val gain: Int, val grads: Int)
+data class DriveLog(val ok: Int, val miss: Int, val gain: Int, val grads: Int,
+    val total: Int = 0, val pending: Int = 0, val selfChecked: Int = 0, val demo: Boolean = false)
 
 /** 동의 값: on / off / ask(Hy! mate가 물어보기) */
 data class Consents(val feedback: String = "on", val cond: String = "ask", val chime: String = "on")
@@ -60,7 +70,7 @@ sealed interface VoiceUi {
 
 /**
  * 화면 상태 + 실제 차량 속도에 따른 주행 기록.
- * 지도는 예시 경로이며, 이동은 AAOS 차속으로만 진행해요.
+ * 실제 지도 위에 Pleos GPS 또는 차속 기반 데모 위치를 표시해요.
  */
 class HyViewModel : ViewModel() {
     var screen by mutableStateOf(Screen.Home); private set
@@ -88,6 +98,65 @@ class HyViewModel : ViewModel() {
     var vehicleLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
     var speedLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
     var locationLink by mutableStateOf<VehicleLink>(VehicleLink.Simulated); private set
+    var gpsPosition by mutableStateOf<GeoPoint?>(null); private set
+    var emulatorDemoAvailable by mutableStateOf(false); private set
+    var demoRoute by mutableStateOf(false); private set
+    var driveUsesDemo by mutableStateOf(false); private set
+    private var mapModeInitialized = false
+    var roadRoute by mutableStateOf<RoadRoute?>(null); private set
+    var navigationProgress by mutableFloatStateOf(0f); private set
+    var navigationPosition by mutableStateOf<GeoPoint?>(null); private set
+    var navigationOffRoute by mutableStateOf(false); private set
+    var routeLoading by mutableStateOf(false); private set
+    var routeError by mutableStateOf<String?>(null); private set
+    var navigationFixFresh by mutableStateOf(false); private set
+    var arrivalPredictionMillis by mutableStateOf<Long?>(null); private set
+    private var tracker = RouteTracker()
+    private var questRouteVersion = 0
+    private val router = OsrmRoutingClient(BuildConfig.ROUTING_BASE_URL)
+    private var routeJob: Job? = null
+    private var driveGeneration = 0L
+    private var routeRetryAt = 0L
+    private var gpsReceivedAt = 0L
+    private var lastEtaUpdate = 0L
+    private var navigationVisible = false
+
+    fun onNavigationVisibility(visible: Boolean) {
+        navigationVisible = visible
+        if (!visible) {
+            driveGeneration++
+            routeJob?.cancel()
+            routeLoading = false
+        }
+    }
+    val mapPosition: GeoPoint? get() = if (driveUsesDemo) navigationPosition ?: NAV_ORIGIN
+        else gpsPosition?.let { navigationPosition ?: it }
+    val navigationReady: Boolean get() = roadRoute != null && !routeLoading && !navigationOffRoute &&
+        (driveUsesDemo || navigationFixFresh)
+    val navigationRemainingMeters: Float? get() = if (navigationReady)
+        roadRoute?.let { (it.distance - navigationProgress).coerceAtLeast(0f) } else null
+    val navigationStatus: String get() = when {
+        !driveUsesDemo && !navigationFixFresh -> "실제 GPS · 위치 수신 대기"
+        routeLoading -> if (roadRoute == null) "도로 경로 탐색 중" else "경로 이탈 · 재탐색 중"
+        routeError != null -> routeError!!
+        navigationOffRoute -> "경로 이탈 · 재탐색 대기"
+        driveUsesDemo -> "도로 주행 데모 · 차속 연동 · 교통정보 미반영"
+        else -> "실제 GPS · 양재 본사 안내 · 교통정보 미반영"
+    }
+
+    /** 디버그 에뮬레이터에서만 기본값을 데모로 둬요. 실차는 항상 실제 GPS로 시작해요. */
+    fun configureEmulatorDemo(available: Boolean) {
+        if (mapModeInitialized) return
+        mapModeInitialized = true
+        emulatorDemoAvailable = available
+        demoRoute = available
+    }
+
+    fun selectDemoRoute(enabled: Boolean) {
+        if (!emulatorDemoAvailable) return
+        demoRoute = enabled
+        showToast("다음 주행부터 ${if (enabled) "국민대 출발 데모" else "실제 GPS"}를 사용해요.")
+    }
     var motionAvailable by mutableStateOf(false); private set
     var remainingSeconds by mutableStateOf<Float?>(null); private set
     var arrivedAtMillis by mutableStateOf(0L); private set
@@ -107,6 +176,15 @@ class HyViewModel : ViewModel() {
     /** 경로 진행 거리(m). 쓰기는 ViewModel 내부에서만, 화면은 읽기만 해요. */
     val progress: Float get() = _progress.floatValue
     var questStarted by mutableStateOf(false); private set
+    var demoReport by mutableStateOf(false); private set
+    val demoResultsAvailable: Boolean get() = BuildConfig.DEBUG && emulatorDemoAvailable &&
+        questStarted && screen == Screen.Drive
+    /** Pleos Seat API의 실제 운전석 버클 체결값. 미수신 기본값은 체결로 표시하지 않아요. */
+    val seatBeltStatus: String get() = when {
+        VehicleSignal.BELT !in vehicle.knownSignals -> "운전석 벨트 · 수신 대기"
+        vehicle.belt -> "운전석 벨트 · 체결"
+        else -> "운전석 벨트 · 해제"
+    }
     var stopped by mutableStateOf(false); private set
     /** 주행 중 비 오버레이: 와이퍼 작동으로 추정 */
     val raining: Boolean get() = screen == Screen.Drive && vehicle.wiping
@@ -225,7 +303,7 @@ class HyViewModel : ViewModel() {
 
     fun onVehicleLink(link: VehicleLink) {
         vehicleLink = link
-        if (link != VehicleLink.Connected) vehicle = vehicle.copy(knownSignals = emptySet())
+        if (link != VehicleLink.Connected) vehicle = vehicle.copy(knownSignals = emptySet(), lowBeamOn = null)
         silenceWhenMoving()
     }
 
@@ -239,12 +317,69 @@ class HyViewModel : ViewModel() {
         }
     }
 
-    fun onLocationLink(link: VehicleLink) { locationLink = link }
+    fun onLocationLink(link: VehicleLink) {
+        locationLink = link
+        if (link != VehicleLink.Connected) {
+            gpsPosition = null
+            navigationFixFresh = false
+        }
+    }
 
-    /** FusedLocation 좌표 → 경로 스냅. 경로에서 벗어나 있으면 차속 적분을 그대로 둬요. */
+    /** Pleos GPS를 탐색된 실제 도로에 투영해 진행도·경로 이탈을 판정해요. */
     fun onLocationFix(lat: Double, lng: Double) {
-        val d = com.example.hymate.data.routeDistanceOf(lat, lng) ?: return
-        session.syncDistance(d)
+        val point = GeoPoint(lat, lng)
+        if (!point.valid) return
+        gpsPosition = point
+        gpsReceivedAt = SystemClock.elapsedRealtime()
+        navigationFixFresh = true
+        if (screen != Screen.Drive || driveUsesDemo) return
+        tracker.observe(point, gpsReceivedAt)
+        publishNavigation()
+        requestNavigationIfNeeded()
+    }
+
+    private fun publishNavigation() {
+        navigationProgress = tracker.progress
+        navigationPosition = tracker.position
+        navigationOffRoute = tracker.offRoute
+    }
+
+    /** 중복 요청 방지·15초 재탐색 제한·실패 시 30초 백오프. 새 주행의 늦은 응답은 버려요. */
+    private fun requestNavigationIfNeeded() {
+        if (!navigationVisible || screen != Screen.Drive || (!driveUsesDemo && !navigationFixFresh)) return
+        val now = SystemClock.elapsedRealtime()
+        if (now < routeRetryAt || !tracker.shouldRequest(now, routeJob?.isActive == true)) return
+        val origin = if (driveUsesDemo) NAV_ORIGIN else gpsPosition ?: return
+        tracker.markRequested(now)
+        routeLoading = true
+        routeError = null
+        remainingSeconds = null
+        arrivalPredictionMillis = null
+        lastEtaUpdate = 0L
+        val generation = driveGeneration
+        routeJob = viewModelScope.launch {
+            try {
+                val value = router.route(origin, NAV_DESTINATION)
+                coroutineContext.ensureActive()
+                if (generation != driveGeneration || screen != Screen.Drive) return@launch
+                tracker.install(value)
+                roadRoute = value
+                questRouteVersion++
+                if (!driveUsesDemo) gpsPosition?.let { tracker.observe(it, SystemClock.elapsedRealtime()) }
+                publishNavigation()
+                if (questStarted) quests = LiveQuestPlan.bindRoute(quests, value, questRouteVersion, tracker.progress)
+                routeError = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (generation == driveGeneration) {
+                    routeError = error.message ?: "경로 탐색에 실패했어요. 자동으로 다시 시도해요."
+                    routeRetryAt = SystemClock.elapsedRealtime() + 30_000L
+                }
+            } finally {
+                if (generation == driveGeneration) routeLoading = false
+            }
+        }
     }
 
     fun onVehicleSpeed(speedMps: Float?, sampledAtNanos: Long) {
@@ -262,7 +397,9 @@ class HyViewModel : ViewModel() {
             stopped = false
             val moving = vehicle.hasFreshSpeed(SystemClock.elapsedRealtimeNanos()) &&
                 abs(vehicle.speedMps ?: 0f) > 0.5f / 3.6f
-            if (screen != Screen.Settings || driving || moving) cancelVoice()
+            if ((screen != Screen.Settings || driving || moving) &&
+                (voice != null || feedbackJob?.isActive == true)
+            ) cancelVoice()
         }
     }
 
@@ -305,12 +442,23 @@ class HyViewModel : ViewModel() {
         if (screen == Screen.Drive) return
         cancelVoice()
         questStarted = withQuest
-        // 기존 시나리오에서는 지점 목록만 재사용하고, 미리 정해진 결과는 버려요.
-        quests = if (withQuest) buildQuests(profile, user, vehicle, consents.cond)
-            .filterNot { it.g in unsupportedGuides } // 차종 미지원 가이드는 퀘스트도 만들지 않아요
-            .map { it.copy(res = 'N', ev = "아직 판정 지점에 도달하지 않았어요") }
-        else emptyList()
-        session = LiveDriveSession()
+        demoReport = false
+        quests = if (withQuest) LiveQuestPlan.create(user, unsupportedGuides, consents.cond) else emptyList()
+        questRouteVersion = 0
+        driveUsesDemo = demoRoute
+        driveGeneration++
+        routeJob?.cancel()
+        routeJob = null
+        tracker = RouteTracker()
+        roadRoute = null
+        navigationProgress = 0f
+        navigationPosition = null
+        navigationOffRoute = false
+        routeLoading = false
+        routeError = null
+        routeRetryAt = 0L
+        arrivalPredictionMillis = null
+        session = LiveDriveSession(allowLocationSnap = false)
         evaluator = LiveQuestEvaluator()
         _progress.floatValue = 0f
         stopped = false; voice = null
@@ -325,6 +473,16 @@ class HyViewModel : ViewModel() {
     fun finishDrive() {
         if (screen != Screen.Drive || driving) return
         driveJob?.cancel()
+        arrive()
+    }
+
+    /** 디버그 에뮬레이터의 발표용 결과. 실제 센서 값과 주행 거리는 바꾸지 않아요. */
+    fun finishDemoDrive() {
+        if (!demoResultsAvailable || driving) return
+        driveJob?.cancel()
+        cancelVoice()
+        quests = com.example.hymate.data.buildDemoQuestResults(quests, user.drives + 1)
+        demoReport = true
         arrive()
     }
 
@@ -416,19 +574,33 @@ class HyViewModel : ViewModel() {
         val fed = mutableSetOf<String>()
         var stopHandled = false
         var conditionAsked = false
-        while (_progress.floatValue < DEST) {
+        while (true) {
             delay(100)
+            val previousDistance = session.distanceMeters
             session.tick(vehicle, SystemClock.elapsedRealtimeNanos())
             motionAvailable = session.speedAvailable
-            _progress.floatValue = session.distanceMeters.coerceAtMost(DEST.toFloat())
-            remainingSeconds = session.remainingSeconds(DEST.toFloat(), vehicle)
+            _progress.floatValue = session.distanceMeters
+            val now = SystemClock.elapsedRealtime()
+            navigationFixFresh = gpsPosition != null && locationLink == VehicleLink.Connected && now - gpsReceivedAt <= 10_000L
+            if (driveUsesDemo) tracker.advanceDemo(session.distanceMeters - previousDistance)
+            publishNavigation()
+            requestNavigationIfNeeded()
+            remainingSeconds = if (navigationReady) roadRoute?.remainingDuration(navigationProgress) else null
+            if (now - lastEtaUpdate >= 1000L) {
+                arrivalPredictionMillis = remainingSeconds?.let { System.currentTimeMillis() + (it * 1000).toLong() }
+                lastEtaUpdate = now
+            }
+            if (tracker.arrived && navigationReady) break
             stopped = session.stopped
             if (!stopped) {
                 stopHandled = false
                 // 재출발 시 즉시 음성 중단. 매 틱이 아니라 재생 중일 때만 호출해요.
                 if (screen == Screen.Drive && (voice != null || feedbackJob?.isActive == true)) cancelVoice()
             }
-            if (questStarted) quests = evaluator.update(quests, vehicle, session)
+            if (questStarted) quests = evaluator.update(
+                quests, vehicle, session,
+                roadRoute?.let { QuestRouteState(questRouteVersion, navigationProgress, navigationReady) },
+            )
             if (stopped && screen == Screen.Drive && questStarted && speechEngine != null &&
                 !stopHandled && feedbackJob?.isActive != true
             ) {
@@ -472,7 +644,7 @@ class HyViewModel : ViewModel() {
             consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "포함", channel)
             say(VoiceUi.Confirm("네, 오늘 넣을게요."))
         } else {
-            quests = quests.filterNot { it.consent } // 동의 전 판정값은 차 안에서 지워요
+            quests = quests.map { if (it.consent) it.copy(res = 'N', ev = "상황 가이드에 동의하지 않아 제외했어요", consent = false, completed = true, notApplicable = true) else it }
             consentLog = consentLog + ConsentRecord("상황 가이드 (우천)", "제외", if (reply == VoiceAnswer.NO_RESPONSE) "무응답 · 정차 중 Hy! mate" else channel)
             say(VoiceUi.Confirm(if (reply == VoiceAnswer.NO_RESPONSE) "명확한 대답이 없어서 이번엔 뺄게요." else "이번엔 뺄게요."))
         }
@@ -480,8 +652,11 @@ class HyViewModel : ViewModel() {
     }
 
     private fun arrive() {
+        driveGeneration++
+        routeJob?.cancel()
+        routeLoading = false
         cancelVoice()
-        quests = evaluator.finish(quests).filterNot { it.consent }
+        if (!demoReport) quests = evaluator.finish(quests)
         feedbackJob?.cancel()
         stopped = false; voice = null
         arrivedSec = session.elapsedSeconds
@@ -497,7 +672,16 @@ class HyViewModel : ViewModel() {
 
     /** 보류 퀘스트에 운전자가 직접 답해요 (자가 체크 · 경험 자기보고) */
     fun answerHold(id: String, yes: Boolean) {
+        if (screen != Screen.Report || driving) return
         quests = quests.map { if (it.id == id) com.example.hymate.data.resolveHold(it, yes) else it }
+    }
+
+    fun skipHold(id: String) {
+        if (screen != Screen.Report || driving) return
+        quests = quests.map { if (it.id == id && it.res == 'H') it.copy(
+            res = 'N', ev = "자가 확인 · 이번 주행에는 해당 없다고 응답", completed = true,
+            selfCheck = true, notApplicable = true,
+        ) else it }
     }
 
     /** 출발 전 학습 완료 보상: 주차 실습·내용 확인은 +5, Hyundai ONLY 경험은 +3 */
@@ -519,6 +703,10 @@ class HyViewModel : ViewModel() {
             miss = judged.count { it.res == 'F' && !it.disputed },
             gain = g.gain,
             grads = g.grads.size,
+            demo = demoReport,
+            total = quests.size,
+            pending = quests.count { it.res == 'H' },
+            selfChecked = quests.count { it.selfAnswer != null || (it.selfCheck && it.notApplicable) },
         )
         val before = tierOf(user.xp)?.first
         user = user.copy(st = g.st, xp = user.xp + g.gain, drives = user.drives + 1, routeMemory = true)
@@ -528,6 +716,12 @@ class HyViewModel : ViewModel() {
     }
 
     fun nextDrive() {
+        driveGeneration++
+        routeJob?.cancel()
+        routeLoading = false
+        roadRoute = null
+        navigationPosition = null
+        arrivalPredictionMillis = null
         cancelVoice()
         driveJob?.cancel()
         feedbackJob?.cancel()
@@ -535,6 +729,7 @@ class HyViewModel : ViewModel() {
         voice = null
         remainingSeconds = null
         ceremony = null
+        demoReport = false
         quests = emptyList()
         practice = emptyMap()
         selectedGuide = null

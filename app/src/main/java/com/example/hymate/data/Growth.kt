@@ -30,6 +30,7 @@ fun computeGrowth(user: UserProfile, quests: List<Quest>, practiceXp: Int): Grow
         if (q.disputed && q.res == 'F') continue
         if (q.res == 'H' || q.res == 'N') continue
         val g = guide(q.g)
+        if (q.selfCheck && g.type == GType.AUTO) continue // 자가 체크를 자동 성공·졸업·XP로 바꾸지 않아요.
         var s = st.getValue(q.g).copy(seen = true)
         if (q.res == 'R' || q.res == 'E') { earned += q.g; st[q.g] = s; continue }
         if (g.type != GType.AUTO) continue
@@ -70,7 +71,7 @@ fun computeGrowth(user: UserProfile, quests: List<Quest>, practiceXp: Int): Grow
 /** 보류('H') 퀘스트에 운전자가 답할 때 보여줄 선택지: (예, 아니오) */
 fun holdLabels(g: String): Pair<String, String> = when (g) {
     "RED_RIGHT_STOP" -> "빨간불이었어요" to "빨간불 아니었어요"
-    else -> "해봤어요" to "안 했어요"
+    else -> if (guide(g).type == GType.AUTO) "지켰어요" to "못 지켰어요" else "해봤어요" to "안 했어요"
 }
 
 /**
@@ -80,6 +81,11 @@ fun holdLabels(g: String): Pair<String, String> = when (g) {
  */
 fun resolveHold(q: Quest, yes: Boolean): Quest {
     if (q.res != 'H') return q
+    if (q.selfCheck) return q.copy(
+        res = if (yes) { if (guide(q.g).type == GType.EXPERIENCE) 'E' else 'R' } else 'N',
+        ev = "자가 확인 · ${if (yes) "지키거나 수행했다고" else "지키거나 수행하지 못했다고"} 직접 응답 · 자동 판정 아님",
+        selfAnswer = yes, completed = true,
+    )
     return when {
         guide(q.g).type == GType.EXPERIENCE ->
             if (yes) q.copy(res = 'E', ev = "직접 알려줌 · 해봤어요") else q.copy(res = 'N', ev = "직접 알려줌 · 이번엔 안 했어요")

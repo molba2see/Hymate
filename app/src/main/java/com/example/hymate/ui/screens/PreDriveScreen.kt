@@ -40,7 +40,6 @@ import com.example.hymate.data.XP
 import com.example.hymate.data.guide
 import com.example.hymate.data.lvLabel
 import com.example.hymate.data.remaining
-import com.example.hymate.data.routeCount
 import com.example.hymate.data.todayQuest
 import com.example.hymate.ui.components.ArcadeTag
 import com.example.hymate.ui.components.BtnKind
@@ -75,9 +74,9 @@ fun PreDriveScreen(vm: HyViewModel) {
                 Column(Modifier.weight(1f)) {
                     ArcadeTag("01 / PRE-DRIVE", Modifier.padding(bottom = 6.u))
                     Eyebrow("출발 전 가이드 · " + if (u.routeMemory) "자주 다닌 길 ${u.drives}회" else "처음 가는 길")
-                    H1("국민대학교 → 현대자동차 양재 본사")
+                    H1(if (vm.demoRoute) "국민대학교 → 현대자동차 양재 본사" else "현재 위치 → 현대자동차 양재 본사")
                     Row(Modifier.padding(top = 20.u), horizontalArrangement = Arrangement.spacedBy(16.u)) {
-                        HChip("21.4km · 약 42분")
+                        HChip("출발 시 도로 경로 탐색")
                         HChip(if (vm.rainy) "우천 감지 · 와이퍼" else "맑음", if (vm.rainy) HyIcons.Rain else HyIcons.Sun)
                         HChip("주간", HyIcons.Sun)
                         HChip("남은 가이드 ${remaining(u.st)}개", color = hy.ok)
@@ -159,8 +158,8 @@ private fun GuideRow(vm: HyViewModel, x: PreGuide) {
         "exp" -> "경험형 · 판정하지 않아요" to hy.gleo
         else -> "익히는 중" to hy.sub
     }
-    val known = vm.user.routeMemory || x.key in setOf("RAIN", "RAIN_SLOW", "UNPROT_TIME", "HEADLIGHT", "SEATBELT", "SPEED", "HS_NSCC", "HS_GLEO", "HS_RSPA")
-    val sub = if (known) routeCount(x.key, vm.rainy) else "처음 가는 길이라 지점 수는 주행 중에 확인해요"
+    val sub = if (x.key == "SEATBELT") vm.seatBeltStatus + " · 자동 체크"
+        else com.example.hymate.vehicle.LiveQuestPlan.checkLabel(x.key)
     val done = vm.practiceState(x.key).done
     val hasPractice = GD[x.key]?.practice?.isNotEmpty() == true
     Row(

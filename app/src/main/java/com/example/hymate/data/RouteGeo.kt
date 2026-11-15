@@ -10,6 +10,24 @@ import kotlin.math.sqrt
  */
 private class GeoAnchor(val d: Float, val lat: Double, val lng: Double)
 
+data class GeoPoint(val lat: Double, val lng: Double) {
+    val valid: Boolean get() = lat.isFinite() && lng.isFinite() && lat in -90.0..90.0 && lng in -180.0..180.0
+}
+
+/** 지도에 그리는 데모 근사 경로. 실제 길찾기 결과가 아니에요. */
+val demoRoutePoints: List<GeoPoint> get() = GEO.map { GeoPoint(it.lat, it.lng) }
+
+/** 차속으로 적분한 데모 진행도에 대응하는 좌표. 시스템 GPS는 바꾸지 않아요. */
+fun routePointAt(meters: Float): GeoPoint {
+    val distance = if (meters.isFinite()) meters.coerceIn(0f, GEO.last().d) else 0f
+    val end = GEO.indexOfFirst { it.d >= distance }.coerceAtLeast(0)
+    if (end == 0) return GeoPoint(GEO.first().lat, GEO.first().lng)
+    val a = GEO[end - 1]
+    val b = GEO[end]
+    val t = (distance - a.d) / (b.d - a.d)
+    return GeoPoint(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t)
+}
+
 private val GEO = listOf(
     GeoAnchor(0f, 37.6109, 126.9973), // 국민대학교
     GeoAnchor(650f, 37.6052, 126.9938), // 정문 앞 교차로

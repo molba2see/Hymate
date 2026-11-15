@@ -1,6 +1,8 @@
 package com.example.hymate.vehicle
 
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -11,7 +13,7 @@ import ai.pleos.playground.location.fused.model.LocationData
 /**
  * Pleos FusedLocation(v1.1.3) → 차량 위경도.
  * 지도 스냅(경로 위 실제 위치 표시)에 써요. Pleos 환경이 아니면 조용히 Unavailable로 둬요.
- * 좌표는 경로거리 변환에만 쓰고 저장·전송하지 않아요.
+ * 좌표는 지도 표시·경로거리 변환에 쓰고 저장하지 않아요. 지도 타일은 별도 렌더러가 요청해요.
  */
 class LocationSource(
     context: Context,
@@ -46,9 +48,15 @@ class LocationSource(
 
     fun start() {
         if (client != null) return
+        if (ContextCompat.checkSelfPermission(appContext, PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+            onLink(VehicleLink.Unavailable("차량 위치 권한이 필요해요"))
+            return
+        }
         onLink(VehicleLink.Connecting)
+        var starting: FusedLocation? = null
         try {
             val loc = FusedLocation(appContext)
+            starting = loc
             loc.initialize()
             if (!loc.isSupported()) {
                 loc.release()
@@ -60,6 +68,7 @@ class LocationSource(
         } catch (t: Throwable) {
             Log.w(TAG, "FusedLocation 시작 실패", t)
             client = null
+            runCatching { starting?.release() }
             onLink(VehicleLink.Unavailable(t.message ?: t.javaClass.simpleName))
         }
     }
@@ -77,7 +86,8 @@ class LocationSource(
         onLink(VehicleLink.Simulated)
     }
 
-    private companion object {
-        const val TAG = "HyLocation"
+    companion object {
+        const val PERMISSION = "pleos.car.permission.FUSED_LOCATION"
+        private const val TAG = "HyLocation"
     }
 }

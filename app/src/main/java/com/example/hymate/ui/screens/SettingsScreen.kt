@@ -51,6 +51,18 @@ fun SettingsScreen(vm: HyViewModel) {
                     Modifier.weight(960f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(20.u),
                 ) {
+                    if (vm.emulatorDemoAvailable) {
+                        SettingItem(
+                            "지도 위치 · 다음 주행",
+                            "국민대 출발 데모는 매번 0m에서 시작해 차량 속도로 이동해요. 실제 GPS는 차량의 현재 위치를 표시해요.",
+                        ) {
+                            HSeg(
+                                listOf("demo" to "국민대 출발 데모", "gps" to "실제 GPS"),
+                                if (vm.demoRoute) "demo" else "gps",
+                                { vm.selectDemoRoute(it == "demo") }, Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                     SettingItem(
                         "음성 안내·응답 테스트",
                         "질문을 끝까지 들은 뒤 ‘응’ 또는 ‘아니’라고 말해 보세요. 듣는 중에만 차량 마이크를 사용해요.",

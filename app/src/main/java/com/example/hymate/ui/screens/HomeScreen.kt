@@ -95,9 +95,9 @@ private fun CourseHero(vm: HyViewModel, modifier: Modifier) {
         PixelSkyline(Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().padding(40.u)) {
             ArcadeTag("SEOUL / TODAY'S COURSE")
-            HText("국민대학교 → 현대자동차 양재 본사", 50, Modifier.padding(top = 10.u), color = hy.fg, weight = FontWeight.Bold, lineHeight = 1.2f, maxLines = 2)
+            HText(if (vm.demoRoute) "국민대학교 → 현대자동차 양재 본사" else "현재 위치 → 현대자동차 양재 본사", 50, Modifier.padding(top = 10.u), color = hy.fg, weight = FontWeight.Bold, lineHeight = 1.2f, maxLines = 2)
             HText(
-                "21.4km · 약 42분 · " + if (vm.rainy) "우천 감지 · 와이퍼 작동" else "맑음",
+                "출발 시 도로 경로 탐색 · " + if (vm.rainy) "우천 감지 · 와이퍼 작동" else "맑음",
                 30, Modifier.padding(top = 8.u), color = hy.sub,
             )
             VSpacer1()
@@ -149,12 +149,14 @@ private fun DriveLogCard(vm: HyViewModel, modifier: Modifier) {
             HText("주행을 마치면 여기에 요약이 보여요.", 26, Modifier.padding(top = 4.u), color = hy.sub)
         } else {
             HText("최근 주행", 36, Modifier.padding(top = 10.u), weight = FontWeight.Bold)
-            HText("국민대학교 → 양재 본사 · 21.4km", 26, Modifier.padding(top = 4.u), color = hy.sub, maxLines = 1)
+            HText("양재 본사 · 주행 기록", 26, Modifier.padding(top = 4.u), color = hy.sub, maxLines = 1)
             VSpacer1()
             Row(horizontalArrangement = Arrangement.spacedBy(12.u)) {
                 HChip("지킴 ${log.ok}", height = 60, textSize = 28, leading = { OxMark('S') })
                 HChip("놓침 ${log.miss}", height = 60, textSize = 28, leading = { OxMark('F') })
             }
+            HText("전체 ${log.total}건 · 직접 체크 ${log.selfChecked}건 · 확인 대기 ${log.pending}건", 23,
+                Modifier.padding(top = 8.u), color = hy.sub, maxLines = 1)
             HText(
                 "+${log.gain} XP" + if (log.grads > 0) " · 졸업 ${log.grads}개" else "",
                 30, Modifier.padding(top = 12.u), color = hy.ok, weight = FontWeight.Bold,

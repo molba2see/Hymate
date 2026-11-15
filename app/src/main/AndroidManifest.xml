@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- 차량(AAOS) 우선이지만, 개발 중에는 태블릿/에뮬레이터에서도 설치되도록 required=false -->
     <uses-feature
         android:name="android.hardware.type.automotive"
@@ -21,7 +23,7 @@
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />  <!-- Light · TurnSignal -->
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" /> <!-- Wiper -->
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />   <!-- Brake -->
-    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />  <!-- Safety(안전벨트 경고) -->
+    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />   <!-- Seat · 안전벨트 체결 읽기 -->
 
     <application
         android:allowBackup="true"

@@ -69,6 +69,8 @@ data class Vehicle(
     val wiper: String = "OFF", // OFF / AUTO / LOW (스위치 위치)
     /** 와이퍼가 실제로 움직이는 중인지(WiperState.ON). 서버 날씨 대신 우천 추정에 써요. */
     val wiping: Boolean = false,
+    /** LowBeamLightState 실제 점등. AUTO 스위치 위치와 별개예요. */
+    val lowBeamOn: Boolean? = null,
     val belt: Boolean = true,
     val brake: Boolean = false,
     val parked: Boolean = true,
@@ -402,6 +404,12 @@ data class Quest(
     val fb: Boolean = true, // 졸업한 가이드는 정차 피드백 없음
     val consent: Boolean = false, // 상황 가이드 동의 대기 중 (차 안 임시 보관)
     val disputed: Boolean = false,
+    val routeVersion: Int? = null,
+    val coordinate: GeoPoint? = null,
+    val completed: Boolean = false,
+    val selfCheck: Boolean = false,
+    val selfAnswer: Boolean? = null,
+    val notApplicable: Boolean = false,
 )
 
 /**

@@ -12,7 +12,7 @@ fun Vehicle.hasFreshSpeed(nowNanos: Long): Boolean =
         nowNanos - speedUpdatedAtNanos in 0..SPEED_TIMEOUT_NANOS
 
 /** 차량 속도 × 실제 경과 시간으로만 진행해요. 데이터 공백은 나중에 몰아서 이동하지 않아요. */
-class LiveDriveSession {
+class LiveDriveSession(private val allowLocationSnap: Boolean = true) {
     var distanceMeters = 0f; private set
     var elapsedSeconds = 0f; private set
     var stopped = false; private set
@@ -47,13 +47,10 @@ class LiveDriveSession {
         }
     }
 
-    /**
-     * 위치 스냅으로 경로거리를 보정해요. 앞으로는 그대로 따라가고,
-     * GPS 흔들림으로 인한 뒤로 점프는 30m까지만 무시해요(그 이상 뒤면 적분 오차 → 수용).
-     */
+    /** 작은 GPS 후퇴(30m 이하)는 무시하고, 큰 적분 오차는 앞뒤 모두 보정해요. */
     fun syncDistance(meters: Float) {
-        if (!meters.isFinite() || meters < 0f) return
-        if (meters >= distanceMeters - 30f) distanceMeters = meters
+        if (!allowLocationSnap || !meters.isFinite() || meters < 0f) return
+        if (meters >= distanceMeters || distanceMeters - meters > 30f) distanceMeters = meters
     }
 
     fun remainingSeconds(destinationMeters: Float, vehicle: Vehicle): Float? {
