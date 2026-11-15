@@ -10,6 +10,10 @@
     <!-- AAOS 차속 읽기: 런타임에 사용자 동의를 받아요. -->
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
 
+    <!-- 차량 Speech Service가 음성 합성 및 차량 마이크 인식을 처리해요. -->
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+
     <!-- Pleos Connect Vehicle SDK: 사용하는 도메인의 권한만 선언 -->
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />  <!-- Light · TurnSignal -->
     <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" /> <!-- Wiper -->

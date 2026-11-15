@@ -19,6 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -74,7 +78,7 @@ fun PreDriveScreen(vm: HyViewModel) {
                     H1("국민대학교 → 현대자동차 양재 본사")
                     Row(Modifier.padding(top = 20.u), horizontalArrangement = Arrangement.spacedBy(16.u)) {
                         HChip("21.4km · 약 42분")
-                        HChip(if (vm.rainy) "비 예보 · 08:30부터" else "맑음", if (vm.rainy) HyIcons.Rain else HyIcons.Sun)
+                        HChip(if (vm.rainy) "우천 감지 · 와이퍼" else "맑음", if (vm.rainy) HyIcons.Rain else HyIcons.Sun)
                         HChip("주간", HyIcons.Sun)
                         HChip("남은 가이드 ${remaining(u.st)}개", color = hy.ok)
                     }
@@ -95,15 +99,18 @@ fun PreDriveScreen(vm: HyViewModel) {
 
 @Composable
 private fun GuideList(vm: HyViewModel, list: List<PreGuide>, modifier: Modifier) {
-    val learning = list.count { it.tag != "grad" && it.tag != "off" && it.tag != "exp" }
-    val grad = list.count { it.tag == "grad" }
+    // 기획서: 졸업 가이드는 출발 전 안내에서 제외 → 본 목록에서 빼고 하단 접힌 섹션으로 둬요(판정은 계속).
+    val active = list.filter { it.tag != "grad" }
+    val grads = list.filter { it.tag == "grad" }
+    val learning = active.count { it.tag != "off" && it.tag != "exp" }
+    var showGrads by remember { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.u)) {
         ArcadeTag("QUEST LOG")
         Row(verticalAlignment = Alignment.Bottom) {
-            HText("오늘 챙길 가이드 ${list.size}개", 34, Modifier.weight(1f), weight = FontWeight.Bold)
-            HText("익히는 중 ${learning}개 · 졸업 ${grad}개 · 눌러서 연습해요", 28, color = hy.sub, weight = FontWeight.Medium)
+            HText("오늘 챙길 가이드 ${active.size}개", 34, Modifier.weight(1f), weight = FontWeight.Bold)
+            HText("익히는 중 ${learning}개 · 눌러서 연습해요", 28, color = hy.sub, weight = FontWeight.Medium)
         }
-        val grouped = list.groupBy { guide(it.key).lv }
+        val grouped = active.groupBy { guide(it.key).lv }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.u)) {
             grouped.forEach { (lv, items) ->
                 stickyHeader(key = "lv$lv") {
@@ -115,11 +122,25 @@ private fun GuideList(vm: HyViewModel, list: List<PreGuide>, modifier: Modifier)
                         HText(lvLabel(lv), 26, weight = FontWeight.Black)
                         HText(LV_NAME[lv].orEmpty(), 28, color = hy.sub, weight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        val g = items.count { it.tag == "grad" }
-                        HText("${items.size}개" + if (g > 0) " · 졸업 $g" else "", 24, color = hy.sub)
+                        HText("${items.size}개", 24, color = hy.sub)
                     }
                 }
                 items(items, key = { it.key }) { GuideRow(vm, it) }
+            }
+            if (grads.isNotEmpty()) {
+                item(key = "gradFold") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 8.u).clip(RoundedCornerShape(20.u)).background(hy.s2)
+                            .clickable { showGrads = !showGrads }
+                            .padding(horizontal = 24.u, vertical = 16.u),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.u),
+                    ) {
+                        HText("졸업한 가이드 ${grads.size}개 · 안내 없이 판정만 해요", 26, Modifier.weight(1f), color = hy.sub, weight = FontWeight.Bold)
+                        HIcon(if (showGrads) HyIcons.ChevD else HyIcons.ChevR, 32, hy.sub)
+                    }
+                }
+                if (showGrads) items(grads, key = { it.key }) { GuideRow(vm, it) }
             }
         }
     }

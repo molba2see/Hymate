@@ -19,10 +19,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Pleos Connect SDK (Vehicle 등)
+        // Pleos Connect SDK (Vehicle · TextToSpeech · SpeechToText와 그 전이 의존성 — security 등 하위 그룹 포함)
         maven {
             url = uri("https://nexus-playground.pleos.ai/repository/maven-releases/")
-            content { includeGroup("ai.pleos.playground") }
+            content { includeGroupByRegex("ai\\.pleos\\..*") }
         }
     }
 }

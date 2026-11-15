@@ -103,7 +103,15 @@ class PleosVehicleSource(
         override fun onFailed(e: Exception) = failed("Light", e)
     }
     private val wiperListener = object : WiperStateListener {
-        override fun onWiperStateUpdated(state: WiperState?) { main.post { readSwitches() } }
+        override fun onWiperStateUpdated(state: WiperState?) {
+            // 실제 작동 상태(ON)는 우천 추정에 써요. OTHER는 판단 보류(이전 값 유지).
+            when (state) {
+                WiperState.ON -> update { it.copy(wiping = true, knownSignals = it.knownSignals + VehicleSignal.WIPER) }
+                WiperState.OFF, WiperState.SERVICE -> update { it.copy(wiping = false, knownSignals = it.knownSignals + VehicleSignal.WIPER) }
+                else -> Unit
+            }
+            main.post { readSwitches() }
+        }
         override fun onFailed(e: Exception) = failed("Wiper", e)
     }
 
@@ -143,6 +151,11 @@ class PleosVehicleSource(
             v.getDrivingMode().getCruiseControlState(
                 { s -> cruiseListener.onCruiseControlStateUpdated(s) },
                 { e -> failed("DrivingMode", e) },
+            )
+            v.getWiper().getCurrentWiperState(
+                windshield,
+                { s -> wiperListener.onWiperStateUpdated(s) },
+                { e -> failed("Wiper", e) },
             )
             v.getTurnSignal().getCurrentTurnSignalState(
                 { s -> turnListener.onTurnSignalStateUpdated(s) },

@@ -66,7 +66,9 @@ enum class VehicleSignal { TURN, HEADLIGHT, WIPER, BELT, BRAKE, GEAR, CRUISE }
 data class Vehicle(
     val signal: String = "OFF", // L / R / OFF
     val headlight: String = "OFF", // OFF / ON / AUTO
-    val wiper: String = "OFF", // OFF / AUTO / LOW
+    val wiper: String = "OFF", // OFF / AUTO / LOW (스위치 위치)
+    /** 와이퍼가 실제로 움직이는 중인지(WiperState.ON). 서버 날씨 대신 우천 추정에 써요. */
+    val wiping: Boolean = false,
     val belt: Boolean = true,
     val brake: Boolean = false,
     val parked: Boolean = true,
@@ -234,7 +236,7 @@ val GD: Map<String, GuideDetail> = mapOf(
 data class TodayQuest(val title: String, val why: String, val practice: List<PStep>)
 
 fun todayQuest(rainy: Boolean): TodayQuest = if (rainy) {
-    TodayQuest("와이퍼·전조등 AUTO 맞추기", "오늘 비 예보가 있어요. 출발 전에 둘 다 AUTO로 맞춰 두면 비가 와도 손이 덜 가요.", listOf(WP_AUTO, HL_AUTO))
+    TodayQuest("와이퍼·전조등 AUTO 맞추기", "와이퍼가 움직이고 있어요 — 비가 오는 것 같아요. 둘 다 AUTO로 맞춰 두면 손이 덜 가요.", listOf(WP_AUTO, HL_AUTO))
 } else {
     TodayQuest("출발 전 기본 세팅", "오늘 경로에는 정릉터널과 합류·분기 3곳이 있어요. 오토 라이트를 켜 두고 방향지시등 레버를 손에 익혀요.", listOf(HL_AUTO, sig("R", "오른쪽"), SIG_OFF))
 }

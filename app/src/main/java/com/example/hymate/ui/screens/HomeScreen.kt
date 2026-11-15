@@ -97,7 +97,7 @@ private fun CourseHero(vm: HyViewModel, modifier: Modifier) {
             ArcadeTag("SEOUL / TODAY'S COURSE")
             HText("국민대학교 → 현대자동차 양재 본사", 50, Modifier.padding(top = 10.u), color = hy.fg, weight = FontWeight.Bold, lineHeight = 1.2f, maxLines = 2)
             HText(
-                "21.4km · 약 42분 · " + if (vm.rainy) "비 예보 08:30부터" else "맑음",
+                "21.4km · 약 42분 · " + if (vm.rainy) "우천 감지 · 와이퍼 작동" else "맑음",
                 30, Modifier.padding(top = 8.u), color = hy.sub,
             )
             VSpacer1()

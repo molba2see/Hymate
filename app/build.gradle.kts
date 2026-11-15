@@ -57,6 +57,8 @@ dependencies {
 
     // Pleos Connect Vehicle SDK
     implementation(libs.pleos.vehicle)
+    implementation(libs.pleos.tts)
+    implementation(libs.pleos.stt)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

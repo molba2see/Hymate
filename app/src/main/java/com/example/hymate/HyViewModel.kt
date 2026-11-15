@@ -65,7 +65,8 @@ class HyViewModel : ViewModel() {
     private val users = mutableMapOf<String, UserProfile>()
     var user by mutableStateOf(seedUser("L0")); private set
 
-    val rainy = true // 오늘 날씨: 주행 중 비 예보 (08:30부터)
+    /** 우천 추정: 날씨 서버 미연동이라 기획서 폴백대로 와이퍼 실제 작동(WiperState.ON)으로 판단해요. */
+    val rainy: Boolean get() = vehicle.wiping
     var consents by mutableStateOf(Consents()); private set
     var consentLog by mutableStateOf(
         listOf(
@@ -100,7 +101,8 @@ class HyViewModel : ViewModel() {
     val progress: Float get() = _progress.floatValue
     var questStarted by mutableStateOf(false); private set
     var stopped by mutableStateOf(false); private set
-    var raining by mutableStateOf(false); private set
+    /** 주행 중 비 오버레이: 와이퍼 작동으로 추정 */
+    val raining: Boolean get() = screen == Screen.Drive && vehicle.wiping
     var voice by mutableStateOf<VoiceUi?>(null); private set
     var quests by mutableStateOf(listOf<Quest>()); private set
     var arrivedSec by mutableFloatStateOf(0f); private set
@@ -267,7 +269,7 @@ class HyViewModel : ViewModel() {
         session = LiveDriveSession()
         evaluator = LiveQuestEvaluator()
         _progress.floatValue = 0f
-        stopped = false; raining = false; voice = null
+        stopped = false; voice = null
         remainingSeconds = null
         screen = Screen.Drive
         driveJob?.cancel()
@@ -403,7 +405,6 @@ class HyViewModel : ViewModel() {
         selectedGuide = null
         reportDetail = null
         _progress.floatValue = 0f
-        raining = false
         screen = Screen.Home
     }
 
@@ -415,6 +416,7 @@ class HyViewModel : ViewModel() {
 
     fun preGuides(): List<PreGuide> {
         val order = mapOf("fail" to 0, "ret" to 1, "cond" to 2, "new" to 3, "lv" to 4, "off" to 5, "grad" to 6, "exp" to 7)
+        // 졸업 가이드는 기획서대로 출발 전 안내에서 제외하되, UI에서 접힌 섹션으로 보여줘요(판정은 계속).
         return GUIDES.values.filterNot { it.key in unsupportedGuides }.map { g ->
             val s = user.st.getValue(g.key)
             val tag = when {
